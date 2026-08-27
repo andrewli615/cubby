@@ -1,0 +1,8 @@
+.env
+API keys
+AWS credentials
+database passwords
+Xcode user-specific files
+build/
+.gradle/
+.DS_Store
