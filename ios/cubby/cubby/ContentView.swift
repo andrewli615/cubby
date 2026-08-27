@@ -42,6 +42,16 @@ struct ContentView: View {
             .sheet(isPresented: $showScanner) {
                 DocumentScannerView { images in
                     scannedImages = images
+                    if let firstImage = images.first {
+                        do {
+                            let document = try DocumentStorage.shared.saveReceipt(firstImage)
+
+                            print("Saved document:")
+                            print(document)
+                        } catch {
+                            print("Failed to save receipt: \(error)")
+                        }
+                    }
                     showScanner = false
                 }
             }
