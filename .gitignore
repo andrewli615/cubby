@@ -6,3 +6,9 @@ Xcode user-specific files
 build/
 .gradle/
 .DS_Store
+
+# Generated local build and IDE state
+**/.gradle/
+**/build/
+**/xcuserdata/
+**/*.xcuserstate
