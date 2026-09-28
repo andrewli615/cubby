@@ -1,0 +1,7 @@
+{
+  "app": "tsx bin/cubby.ts",
+  "context": {
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"]
+  }
+}
