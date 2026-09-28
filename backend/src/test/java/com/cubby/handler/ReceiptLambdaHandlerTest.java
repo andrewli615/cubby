@@ -22,7 +22,7 @@ class ReceiptLambdaHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"GET /receipts", "POST /receipts",
+    @ValueSource(strings = {"GET /receipts", "POST /receipts", "POST /receipts/upload-url",
             "GET /receipts/920a995d-693c-4634-9fcf-985b1ddc0199",
             "PUT /receipts/920a995d-693c-4634-9fcf-985b1ddc0199",
             "DELETE /receipts/920a995d-693c-4634-9fcf-985b1ddc0199"})

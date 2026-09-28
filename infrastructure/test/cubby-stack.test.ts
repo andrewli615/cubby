@@ -19,13 +19,16 @@ const tableId = ofType("AWS::DynamoDB::Table")[0]![0];
 const logIds = ofType("AWS::Logs::LogGroup").map(([id]) => id);
 const functionLogId = logIds.find((id) => id.startsWith("FunctionLogs"))!;
 const apiId = ofType("AWS::ApiGatewayV2::Api")[0]![0];
+const bucketId = ofType("AWS::S3::Bucket")[0]![0];
+const originalsArn = { "Fn::Join": ["", [{ "Fn::GetAtt": [bucketId, "Arn"] }, "/*/originals/*"]] };
 
 test("only the intended core resources are synthesized", () => {
   const expected: Record<string, number> = {
     "AWS::DynamoDB::Table": 1, "AWS::Logs::LogGroup": 2, "AWS::IAM::Role": 1,
-    "AWS::IAM::Policy": 1, "AWS::Lambda::Function": 1, "AWS::Lambda::Permission": 6,
+    "AWS::IAM::Policy": 1, "AWS::Lambda::Function": 1, "AWS::Lambda::Permission": 7,
     "AWS::ApiGatewayV2::Api": 1, "AWS::ApiGatewayV2::Integration": 1,
-    "AWS::ApiGatewayV2::Route": 6, "AWS::ApiGatewayV2::Stage": 1,
+    "AWS::ApiGatewayV2::Route": 7, "AWS::ApiGatewayV2::Stage": 1,
+    "AWS::S3::Bucket": 1, "AWS::S3::BucketPolicy": 1,
   };
   assert.deepEqual([...new Set(Object.values(resources).map((value) => value.Type))].sort(),
     Object.keys(expected).sort());
@@ -52,7 +55,7 @@ test("Java 21 Lambda uses the packaged entry point and stack-local table and log
   template.hasResourceProperties("AWS::Lambda::Function", {
     Runtime: "java21",
     Handler: "com.cubby.handler.ReceiptLambdaHandler::handleRequest",
-    Environment: { Variables: { RECEIPTS_TABLE_NAME: { Ref: tableId } } },
+    Environment: { Variables: { RECEIPTS_TABLE_NAME: { Ref: tableId }, RECEIPT_IMAGES_BUCKET: { Ref: bucketId } } },
     LoggingConfig: { LogFormat: "JSON", LogGroup: { Ref: functionLogId } },
     Code: { S3Bucket: { "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-west-2" },
       S3Key: Match.stringLikeRegexp("\\.zip$") },
@@ -61,7 +64,7 @@ test("Java 21 Lambda uses the packaged entry point and stack-local table and log
   assert.equal(stack.region, "us-west-2");
 });
 
-test("execution role has only four table operations and two log-stream operations", () => {
+test("execution role has only receipt table, log-stream and conditional upload operations", () => {
   template.hasResourceProperties("AWS::IAM::Role", {
     AssumeRolePolicyDocument: {
       Version: "2012-10-17",
@@ -78,19 +81,21 @@ test("execution role has only four table operations and two log-stream operation
           Resource: [{ "Fn::GetAtt": [tableId, "Arn"] }] },
         { Effect: "Allow", Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
           Resource: { "Fn::GetAtt": [functionLogId, "Arn"] } },
+        { Effect: "Allow", Action: "s3:PutObject", Resource: originalsArn,
+          Condition: { StringEquals: { "s3:if-none-match": "*" } } },
       ],
     },
   });
 });
 
-test("health is the only anonymous route and all five receipt routes require IAM", () => {
+test("health is the only anonymous route and all six receipt routes require IAM", () => {
   const routes = ofType("AWS::ApiGatewayV2::Route").map(([, value]) => value.Properties);
   assert.deepEqual(routes.filter((route) => route.AuthorizationType === "NONE").map((route) => route.RouteKey),
     ["GET /health"]);
   assert.deepEqual(routes.filter((route) => route.AuthorizationType === "AWS_IAM")
     .map((route) => route.RouteKey).sort(),
   ["DELETE /receipts/{receiptId}", "GET /receipts", "GET /receipts/{receiptId}",
-    "POST /receipts", "PUT /receipts/{receiptId}"]);
+    "POST /receipts", "POST /receipts/upload-url", "PUT /receipts/{receiptId}"]);
   template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
     ProtocolType: "HTTP", CorsConfiguration: Match.absent(),
   });
@@ -113,7 +118,7 @@ test("Lambda invocations are restricted to this account, API, stage, method and 
   }
   assert.deepEqual(suffixes.sort(), [
     "/$default/DELETE/receipts/*", "/$default/GET/health", "/$default/GET/receipts",
-    "/$default/GET/receipts/*", "/$default/POST/receipts", "/$default/PUT/receipts/*",
+    "/$default/GET/receipts/*", "/$default/POST/receipts", "/$default/POST/receipts/upload-url", "/$default/PUT/receipts/*",
   ]);
 });
 
@@ -135,4 +140,43 @@ test("synthesis rejects a missing Region or missing Java package instead of usin
   assert.throws(() => new CubbyStack(new cdk.App(), "NoRegion", {}), /selected Region/);
   assert.throws(() => new CubbyStack(new cdk.App(), "NoArtifact",
     { env: { region: "us-west-2" }, lambdaAssetPath: "missing-cubby-artifact.zip" }), /Gradle build/);
+});
+
+test("receipt bucket is private, encrypted, retained and has no public access or unrelated features", () => {
+  template.hasResourceProperties("AWS::S3::Bucket", {
+    PublicAccessBlockConfiguration: {
+      BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true,
+    },
+    OwnershipControls: { Rules: [{ ObjectOwnership: "BucketOwnerEnforced" }] },
+    BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: "AES256" } }] },
+    WebsiteConfiguration: Match.absent(),
+    CorsConfiguration: Match.absent(),
+    NotificationConfiguration: Match.absent(),
+    LifecycleConfiguration: Match.absent(),
+  });
+  assert.equal(resources[bucketId]!.DeletionPolicy, "Retain");
+  assert.equal(resources[bucketId]!.UpdateReplacePolicy, "Retain");
+});
+
+test("bucket policy enforces TLS, immutable originals and the upload signature age", () => {
+  template.hasResourceProperties("AWS::S3::BucketPolicy", {
+    Bucket: { Ref: bucketId },
+    PolicyDocument: {
+      Version: "2012-10-17",
+      Statement: [
+        { Effect: "Deny", Principal: { AWS: "*" }, Action: "s3:*",
+          Resource: [{ "Fn::GetAtt": [bucketId, "Arn"] },
+            { "Fn::Join": ["", [{ "Fn::GetAtt": [bucketId, "Arn"] }, "/*"]] }],
+          Condition: { Bool: { "aws:SecureTransport": "false" } } },
+        { Sid: "RequireCreateOnlyOriginals", Effect: "Deny", Principal: { AWS: "*" },
+          Action: "s3:PutObject", Resource: originalsArn,
+          Condition: { StringNotEquals: { "s3:if-none-match": "*" } } },
+        { Sid: "RetainOriginals", Effect: "Deny", Principal: { AWS: "*" },
+          Action: ["s3:DeleteObject", "s3:DeleteObjectVersion"], Resource: originalsArn },
+        { Sid: "LimitUploadSignatureAge", Effect: "Deny", Principal: { AWS: "*" },
+          Action: "s3:PutObject", Resource: originalsArn,
+          Condition: { NumericGreaterThan: { "s3:signatureAge": "300000" } } },
+      ],
+    },
+  });
 });

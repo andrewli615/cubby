@@ -11,7 +11,7 @@ cd backend
 .\gradlew.bat clean test build
 ```
 
-The build runs local JUnit tests and creates `backend/build/distributions/cubby-lambda.zip`. The ZIP contains the application JAR and runtime dependency JARs under `lib/`, as required by Java Lambda. It includes no test dependencies. The build does not upload the artifact.
+The build runs local JUnit tests and creates `backend/build/distributions/cubby-lambda.zip`. The ZIP contains the application JAR and runtime dependency JARs under `lib/`, as required by Java Lambda. It includes no test dependencies. The build does not upload the artifact. Upload unit tests mock `S3Presigner`; one additional signature contract test uses synthetic credentials and an explicit Region for local cryptography only. No test executes a presigned URL.
 
 ## Infrastructure
 
@@ -26,7 +26,7 @@ pnpm test
 pnpm synth --quiet
 ```
 
-`pnpm synth` disables context lookups. It uses `cubby:region` from `cdk.json`, currently Oregon (`us-west-2`), and leaves the account unresolved. No AWS credentials or live resources are needed. Tests assert resource inventory, retention, authorization, exact execution-role actions, invocation permission scope, logging fields and missing-configuration failures.
+`pnpm synth` disables context lookups. It uses `cubby:region` from `cdk.json`, currently Oregon (`us-west-2`), and leaves the account unresolved. No AWS credentials or live resources are needed. Tests assert resource inventory, retention, authorization, exact execution-role actions, invocation permission scope, logging fields, the private S3 bucket, conditional upload permissions, immutable originals and missing-configuration failures.
 
 Review `infrastructure/cdk.out/Cubby.template.json` and the assembly manifest after synthesis. The default stage's AutoDeploy property describes future CloudFormation behavior; it does not deploy anything during synthesis. Do not bootstrap or deploy as part of these checks.
 

@@ -23,6 +23,7 @@ final class ApiJson {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
             .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
             .withCoercionConfig(LogicalType.Textual, config -> config
                     .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)

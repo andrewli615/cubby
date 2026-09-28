@@ -3,6 +3,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import { AccessLogFormat } from "aws-cdk-lib/aws-apigateway";
 import * as apigateway from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpIamAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
@@ -39,6 +40,39 @@ export class CubbyStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const images = new s3.Bucket(this, "ReceiptImages", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      autoDeleteObjects: false,
+    });
+    const originalsArn = images.arnForObjects("*/originals/*");
+    images.addToResourcePolicy(new iam.PolicyStatement({
+      sid: "RequireCreateOnlyOriginals",
+      effect: iam.Effect.DENY,
+      principals: [new iam.AnyPrincipal()],
+      actions: ["s3:PutObject"],
+      resources: [originalsArn],
+      conditions: { StringNotEquals: { "s3:if-none-match": "*" } },
+    }));
+    images.addToResourcePolicy(new iam.PolicyStatement({
+      sid: "RetainOriginals",
+      effect: iam.Effect.DENY,
+      principals: [new iam.AnyPrincipal()],
+      actions: ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+      resources: [originalsArn],
+    }));
+    images.addToResourcePolicy(new iam.PolicyStatement({
+      sid: "LimitUploadSignatureAge",
+      effect: iam.Effect.DENY,
+      principals: [new iam.AnyPrincipal()],
+      actions: ["s3:PutObject"],
+      resources: [originalsArn],
+      conditions: { NumericGreaterThan: { "s3:signatureAge": "300000" } },
+    }));
+
     const functionLogs = new logs.LogGroup(this, "FunctionLogs", {
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -49,7 +83,7 @@ export class CubbyStack extends cdk.Stack {
     });
     const executionRole = new iam.Role(this, "ApiExecutionRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      description: "Cubby receipt table operations and function log streams only",
+      description: "Cubby receipt metadata, create-only image uploads and function logs",
     });
     const handler = new lambda.Function(this, "ApiFunction", {
       runtime: lambda.Runtime.JAVA_21,
@@ -61,7 +95,10 @@ export class CubbyStack extends cdk.Stack {
       role: executionRole,
       logGroup: functionLogs,
       loggingFormat: lambda.LoggingFormat.JSON,
-      environment: { RECEIPTS_TABLE_NAME: receipts.tableName },
+      environment: {
+        RECEIPTS_TABLE_NAME: receipts.tableName,
+        RECEIPT_IMAGES_BUCKET: images.bucketName,
+      },
     });
 
     // Static SDK analysis identifies these CRUD operations. This single-region table uses
@@ -69,6 +106,12 @@ export class CubbyStack extends cdk.Stack {
     receipts.grant(handler,
       "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem");
     functionLogs.grants.write(executionRole);
+    // Static SDK analysis includes optional ACL/tag/KMS operations; this request uses none.
+    executionRole.addToPolicy(new iam.PolicyStatement({
+      actions: ["s3:PutObject"],
+      resources: [originalsArn],
+      conditions: { StringEquals: { "s3:if-none-match": "*" } },
+    }));
 
     const api = new apigateway.HttpApi(this, "HttpApi", {
       createDefaultStage: false,
@@ -82,6 +125,7 @@ export class CubbyStack extends cdk.Stack {
       { path: "/health", method: apigateway.HttpMethod.GET, public: true },
       { path: "/receipts", method: apigateway.HttpMethod.GET, public: false },
       { path: "/receipts", method: apigateway.HttpMethod.POST, public: false },
+      { path: "/receipts/upload-url", method: apigateway.HttpMethod.POST, public: false },
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.GET, public: false },
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.PUT, public: false },
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.DELETE, public: false },

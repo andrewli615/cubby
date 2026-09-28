@@ -1,14 +1,26 @@
 package com.cubby.dto;
 
 import com.cubby.domain.ReceiptValidation;
+import java.util.Set;
 
-/** Describes a file; the service assigns its storage key. */
-public record UploadUrlRequest(String fileName, String contentType) {
+/** Validated upload declaration; owner, key and expiry are always server-assigned. */
+public record UploadUrlRequest(String fileName, String contentType, Long contentLength) {
+    public static final long MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
+    private static final Set<String> CONTENT_TYPES = Set.of("image/jpeg", "image/png", "application/pdf");
+
     public UploadUrlRequest {
         ReceiptValidation.text(fileName, "fileName");
-        ReceiptValidation.text(contentType, "contentType");
-        if (!contentType.matches("[A-Za-z0-9!#$&^_.+\\-]+/[A-Za-z0-9!#$&^_.+\\-]+")) {
-            throw new IllegalArgumentException("contentType must be a media type without parameters");
+        if (fileName.length() > 255 || !fileName.equals(fileName.strip())
+                || fileName.equals(".") || fileName.equals("..")
+                || fileName.contains("/") || fileName.contains("\\")
+                || fileName.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("fileName must be a plain file name of at most 255 characters");
+        }
+        if (contentType == null || !CONTENT_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException("contentType must be image/jpeg, image/png or application/pdf");
+        }
+        if (contentLength == null || contentLength < 1 || contentLength > MAX_CONTENT_LENGTH) {
+            throw new IllegalArgumentException("contentLength must be between 1 and 10485760 bytes");
         }
     }
 }

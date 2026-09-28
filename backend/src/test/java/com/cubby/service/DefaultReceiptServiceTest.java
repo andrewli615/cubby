@@ -29,7 +29,8 @@ class DefaultReceiptServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-28T12:00:00Z");
     private static final LocalDate DATE = LocalDate.of(2026, 9, 28);
     private final ReceiptRepository repository = mock(ReceiptRepository.class);
-    private final ReceiptService service = new DefaultReceiptService(repository,
+    private final ReceiptUploads uploads = mock(ReceiptUploads.class);
+    private final ReceiptService service = new DefaultReceiptService(repository, uploads,
             Clock.fixed(NOW, ZoneOffset.UTC), () -> ID);
 
     @Test
@@ -47,7 +48,7 @@ class DefaultReceiptServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"bob/image", "alice-other/image", "image", "alice/", "alice/ "})
+    @ValueSource(strings = {"bob/image", "alice-other/image", "image", "alice/", "alice/ ", "alice/../bob/image", "alice/%2e%2e/bob", "alice//image"})
     void rejectsImageKeysOutsideTheUsersNamespace(String key) {
         assertThrows(IllegalArgumentException.class, () -> service.create("alice", create(key)));
         verifyNoInteractions(repository);
@@ -160,10 +161,14 @@ class DefaultReceiptServiceTest {
     }
 
     @Test
-    void uploadSigningRemainsUnimplementedAndDoesNotTouchRepository() {
-        assertThrows(UnsupportedOperationException.class,
-                () -> service.createUploadUrl("alice", new UploadUrlRequest("receipt.png", "image/png")));
+    void uploadSigningDelegatesVerifiedOwnerAndMetadataWithoutPersistence() {
+        var request = new UploadUrlRequest("receipt.png", "image/png", 100L);
+        service.createUploadUrl("alice", request);
+        verify(uploads).createUploadUrl("alice", request);
         verifyNoInteractions(repository);
+        assertThrows(IllegalArgumentException.class, () -> service.createUploadUrl("alice/bob", request));
+        assertThrows(IllegalArgumentException.class, () -> service.createUploadUrl("alice", null));
+        verifyNoMoreInteractions(uploads);
     }
 
     private static CreateReceiptRequest create(String imageKey) {

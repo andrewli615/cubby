@@ -6,6 +6,8 @@ import com.cubby.domain.ReceiptValidation;
 import com.cubby.repository.DynamoDbReceiptRepository;
 import com.cubby.service.DefaultReceiptService;
 import com.cubby.service.ReceiptService;
+import com.cubby.service.S3ReceiptUploads;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import java.util.Map;
 import java.util.Optional;
 import software.amazon.awssdk.regions.Region;
@@ -35,10 +37,14 @@ public final class ReceiptLambdaHandler implements RequestHandler<Map<String, Ob
     private static ReceiptService configuredService() {
         String tableName = System.getenv("RECEIPTS_TABLE_NAME");
         String region = System.getenv("AWS_REGION");
+        String bucketName = System.getenv("RECEIPT_IMAGES_BUCKET");
+        ReceiptValidation.text(bucketName, "RECEIPT_IMAGES_BUCKET");
         ReceiptValidation.text(tableName, "RECEIPTS_TABLE_NAME");
         ReceiptValidation.text(region, "AWS_REGION");
         // Reused for the lifetime of this Lambda instance. Construction performs no API call.
         DynamoDbClient client = DynamoDbClient.builder().region(Region.of(region)).build();
-        return new DefaultReceiptService(new DynamoDbReceiptRepository(client, tableName));
+        S3Presigner presigner = S3Presigner.builder().region(Region.of(region)).build();
+        return new DefaultReceiptService(new DynamoDbReceiptRepository(client, tableName),
+                new S3ReceiptUploads(presigner, bucketName));
     }
 }

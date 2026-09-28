@@ -5,6 +5,7 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.cubby.auth.IdentityProvider;
 import com.cubby.dto.CreateReceiptRequest;
 import com.cubby.dto.UpdateReceiptRequest;
+import com.cubby.dto.UploadUrlRequest;
 import com.cubby.service.ReceiptConflictException;
 import com.cubby.service.ReceiptNotFoundException;
 import com.cubby.service.ReceiptService;
@@ -15,7 +16,7 @@ import java.util.UUID;
 
 /**
  * HTTP API payload v2 adapter. Dependencies are injected for local use;
- * Lambda runtime wiring and a verified identity provider belong to later phases.
+ * the runtime composition root supplies the dependencies and denies access until verified identity is integrated.
  */
 public final class ReceiptApiHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     private final ReceiptService service;
@@ -39,9 +40,10 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
             if ("/health".equals(path)) {
                 return "GET".equals(method) ? health.handleRequest(event, context) : methodNotAllowed("GET");
             }
+            boolean upload = "/receipts/upload-url".equals(path);
             boolean collection = "/receipts".equals(path);
             boolean item = path.matches("/receipts/[^/]+");
-            if (!collection && !item) {
+            if (!collection && !item && !upload) {
                 return ApiJson.error(404, "NOT_FOUND", "Route not found");
             }
 
@@ -50,6 +52,11 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
                 return ApiJson.error(401, "UNAUTHORIZED", "Authentication required");
             }
             String userId = user.get();
+            if (upload) {
+                return "POST".equals(method)
+                        ? ApiJson.response(200, service.createUploadUrl(userId, ApiJson.body(event, UploadUrlRequest.class)))
+                        : methodNotAllowed("POST");
+            }
             if (collection) {
                 return switch (method) {
                     case "POST" -> {

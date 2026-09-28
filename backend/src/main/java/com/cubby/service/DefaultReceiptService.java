@@ -1,6 +1,7 @@
 package com.cubby.service;
 
 import com.cubby.domain.Receipt;
+import com.cubby.domain.ReceiptImageKeys;
 import com.cubby.domain.ReceiptStatus;
 import com.cubby.domain.ReceiptValidation;
 import com.cubby.dto.CreateReceiptRequest;
@@ -20,15 +21,17 @@ import java.util.function.Supplier;
 /** Receipt business rules; all persistence is delegated to the injected repository. */
 public final class DefaultReceiptService implements ReceiptService {
     private final ReceiptRepository repository;
+    private final ReceiptUploads uploads;
     private final Clock clock;
     private final Supplier<UUID> receiptIds;
 
-    public DefaultReceiptService(ReceiptRepository repository) {
-        this(repository, Clock.systemUTC(), UUID::randomUUID);
+    public DefaultReceiptService(ReceiptRepository repository, ReceiptUploads uploads) {
+        this(repository, uploads, Clock.systemUTC(), UUID::randomUUID);
     }
 
-    public DefaultReceiptService(ReceiptRepository repository, Clock clock, Supplier<UUID> receiptIds) {
+    public DefaultReceiptService(ReceiptRepository repository, ReceiptUploads uploads, Clock clock, Supplier<UUID> receiptIds) {
         this.repository = Objects.requireNonNull(repository);
+        this.uploads = Objects.requireNonNull(uploads);
         this.clock = Objects.requireNonNull(clock);
         this.receiptIds = Objects.requireNonNull(receiptIds);
     }
@@ -37,11 +40,7 @@ public final class DefaultReceiptService implements ReceiptService {
     public Receipt create(String userId, CreateReceiptRequest request) {
         ReceiptValidation.text(userId, "userId");
         ReceiptValidation.required(request, "request");
-        String imagePrefix = userId + "/";
-        if (!request.imageKey().startsWith(imagePrefix)
-                || request.imageKey().substring(imagePrefix.length()).isBlank()) {
-            throw new IllegalArgumentException("imageKey must belong to the authenticated user");
-        }
+        ReceiptImageKeys.requireOwned(userId, request.imageKey());
         Instant now = clock.instant();
         Receipt receipt = new Receipt(receiptIds.get(), userId, request.merchant(),
                 request.purchaseDate(), request.total(), request.currency(), request.category(),
@@ -98,7 +97,9 @@ public final class DefaultReceiptService implements ReceiptService {
 
     @Override
     public UploadUrlResponse createUploadUrl(String userId, UploadUrlRequest request) {
-        throw new UnsupportedOperationException("Upload URL creation is deferred to Phase 6");
+        ReceiptImageKeys.requireOwner(userId);
+        ReceiptValidation.required(request, "request");
+        return uploads.createUploadUrl(userId, request);
     }
 
     private static Receipt owned(String userId, Receipt receipt) {

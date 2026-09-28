@@ -13,7 +13,7 @@ import java.util.UUID;
  * Receipt operations contract. Each userId must come from verified authentication claims.
  * Implementations must scope all operations and image keys to that owner, preserve
  * receipt identity and createdAt on updates, and assign status and timestamps.
- * DefaultReceiptService implements CRUD through a repository; upload signing and authentication wiring remain deferred.
+ * DefaultReceiptService implements CRUD through a repository; upload signing uses an injected upload boundary. Verified authentication wiring remains deferred.
  */
 public interface ReceiptService {
     Receipt create(String userId, CreateReceiptRequest request);

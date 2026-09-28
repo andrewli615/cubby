@@ -31,7 +31,7 @@ class ReceiptApiLocalTest {
             """;
     private final Map<String, Receipt> records = new HashMap<>();
     private final ReceiptRepository repository = mock(ReceiptRepository.class);
-    private final DefaultReceiptService service = new DefaultReceiptService(repository,
+    private final DefaultReceiptService service = new DefaultReceiptService(repository, mock(com.cubby.service.ReceiptUploads.class),
             Clock.fixed(Instant.parse("2026-09-28T12:00:00Z"), ZoneOffset.UTC), () -> ID);
 
     ReceiptApiLocalTest() {
