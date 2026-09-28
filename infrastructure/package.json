@@ -6,8 +6,9 @@
   "scripts": {
     "build": "tsc --noEmit",
     "lint": "eslint .",
-    "synth": "cdk synth",
-    "cdk": "cdk"
+    "synth": "cdk synth --no-lookups",
+    "cdk": "cdk",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "aws-cdk-lib": "2.271.0",

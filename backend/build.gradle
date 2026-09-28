@@ -32,3 +32,19 @@ dependencies {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
+
+// Package application and dependencies in the Java Lambda lib/ layout; no upload or deployment.
+tasks.register('lambdaZip', Zip) {
+    archiveFileName = 'cubby-lambda.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    into('lib') {
+        from tasks.named('jar')
+        from configurations.runtimeClasspath
+    }
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('lambdaZip')
+}

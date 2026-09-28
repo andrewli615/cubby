@@ -2,6 +2,11 @@
   "app": "tsx bin/cubby.ts",
   "context": {
     "@aws-cdk/core:checkSecretUsage": true,
-    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"]
-  }
+    "@aws-cdk/core:target-partitions": [
+      "aws",
+      "aws-cn"
+    ],
+    "cubby:region": "us-west-2"
+  },
+  "versionReporting": false
 }

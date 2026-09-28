@@ -2,7 +2,7 @@
 
 Cubby is a receipt management web application built with React and TypeScript, a Java 21 backend, and AWS CDK-managed serverless infrastructure. The target architecture uses API Gateway, DynamoDB, private S3 storage, Cognito authentication, and asynchronous Textract processing.
 
-The repository is being built in phases. The current implementation includes the React starter, Java Lambda health and receipt API handlers, receipt domain and DynamoDB repository layers, and an infrastructure scaffold. Authentication, uploads, OCR, and production infrastructure remain future milestones.
+The repository is being built in phases. The current implementation includes the React starter, Java Lambda health and receipt API handlers, receipt domain and DynamoDB repository layers, and locally synthesized core CDK infrastructure for Oregon (`us-west-2`). Authentication, uploads, OCR, and deployment remain future milestones.
 
 ## Repository layout
 
@@ -40,13 +40,15 @@ pnpm test
 pnpm build
 ```
 
-Build and synthesize the empty infrastructure app:
+Build the backend first to produce the Lambda ZIP, then validate and synthesize infrastructure:
 
 ```powershell
 cd infrastructure
 pnpm install
+pnpm lint
 pnpm build
-pnpm synth
+pnpm test
+pnpm synth --quiet
 ```
 
 `cdk synth` writes a CloudFormation template locally. No deployment is performed by these commands.
