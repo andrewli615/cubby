@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–8 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, and receipt CRUD frontend in `3a1474c` passed local acceptance review; issues #14–#17 are closed. Deployment and browser/CORS rollout remain separate. Phase 9 requires a new request. Inspect the working tree before editing and preserve existing work.
+Phases 1–9 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, receipt CRUD frontend in `3a1474c`, and asynchronous OCR in `05b204a` passed local acceptance review; issues #14–#18 are closed. Deployment and browser/CORS rollout remain separate. Phase 10 requires a new request. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ Phases 1–8 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, pr
 | 6. S3 uploads — complete, issue #15 closed | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
 | 7. Cognito — complete, issue #16 closed (`5c74f3c`) | User pool, client, JWT authorizer, and frontend auth code | Backend, frontend and CDK tests plus local synth passed; no identity resources created. |
 | 8. Frontend CRUD — complete, issue #17 closed (`3a1474c`) | Dashboard, receipt list/detail, upload, create, edit, and delete flows | Frozen install, frontend lint, 17 mocked tests, and build passed; no AWS calls or deployment. |
-| 9. Textract | Asynchronous OCR handler, status transitions, and metadata updates | Mocked service tests and synth only; do not invoke Textract. |
+| 9. Textract — complete, issue #18 closed (`05b204a`) | Asynchronous OCR handler, status transitions, and metadata updates | Mocked service tests, backend/frontend checks, and local synth passed; no live Textract invocation. |
 | 10. Search and filtering | Merchant/category/date filters and sorting | Frontend and backend tests; defer indexes until justified. |
 | 11. CI/CD | GitHub Actions validation; OIDC design for later deployment | Workflow validation only; do not create IAM roles or enable deployment. |
 
