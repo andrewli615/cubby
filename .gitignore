@@ -1,10 +1,17 @@
 .env
-API keys
-AWS credentials
-database passwords
-Xcode user-specific files
-build/
+.env.*
+!.env.example
+node_modules/
+.pnpm-store/
+.venv/
+venv/
+**/.venv/
+**/venv/
+dist/
+coverage/
+cdk.out/
 .gradle/
+build/
 .DS_Store
 
 # Generated local build and IDE state
@@ -12,3 +19,9 @@ build/
 **/build/
 **/xcuserdata/
 **/*.xcuserstate
+*.iml
+
+# Local credentials and tool state
+.aws/
+*.pem
+*.key

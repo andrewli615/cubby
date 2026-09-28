@@ -11,6 +11,8 @@ header-includes:
 ---
 # 1. Purpose
 
+> **Superseded planning document:** This file describes the earlier SwiftUI, Spring Boot, and PostgreSQL direction. The active Cubby plan is the web and serverless architecture in [README.md](../README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Cubby** is a private iPhone-first system for capturing, organizing, and retaining receipts and business transaction documents.
 
 The product should make it easy to:
