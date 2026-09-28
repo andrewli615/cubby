@@ -26,6 +26,13 @@ export async function currentSession(): Promise<string | null> {
   return user.signInDetails?.loginId ?? user.username;
 }
 
+/** Short-lived access token for the API Gateway JWT authorizer; never a user ID. */
+export async function accessToken(): Promise<string | null> {
+  if (!authConfigured) return null;
+  const session = await fetchAuthSession();
+  return session.tokens?.accessToken?.toString() ?? null;
+}
+
 function nextStep(result: { isSignedIn: boolean; nextStep: { signInStep: string } }): AuthResult {
   if (result.isSignedIn) return "signedIn";
   if (result.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") return "totp";

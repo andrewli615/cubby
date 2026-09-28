@@ -1,17 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { authConfigured, confirmNewPassword, confirmTotp, currentSession, signInWithPassword, signOutOfSession } from "./auth";
+import { ReceiptPages } from "./receipt-pages";
 
 function HomePage({ account, onSignOut }: { account: string; onSignOut: () => void }) {
-  return <main className="flex min-h-screen items-center justify-center px-6 py-16">
-    <section className="max-w-xl text-center">
-      <p className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-800">Your receipts, in one place</p>
-      <h1 className="text-6xl font-semibold tracking-tight text-stone-900 sm:text-7xl">Cubby</h1>
-      <p className="mt-5 text-lg text-stone-600 sm:text-xl">Receipt management made simple.</p>
-      <p className="mt-6 text-sm text-stone-600">Signed in as {account}</p>
-      <button className="mt-3 rounded bg-emerald-800 px-4 py-2 text-white" onClick={onSignOut}>Sign out</button>
-    </section>
-  </main>;
+  return <ReceiptPages account={account} onSignOut={onSignOut} />;
 }
 
 function AuthPage() {
