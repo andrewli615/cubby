@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–5 are complete on GitHub `main`. Core infrastructure in `92a4b0e` passed acceptance review; issue #14 is closed. Issue #15 (Phase 6: private S3 receipt uploads) is implemented and validated locally; acceptance review and all later milestones remain separate. Deployment remains separate. Inspect the working tree before editing and preserve existing work.
+Phases 1–6 are complete on GitHub `main`. Core infrastructure in `92a4b0e` and private receipt uploads in `406ca0c` passed acceptance review; issues #14 and #15 are closed. Cognito and later milestones require separate requests. Deployment remains separate. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ Phases 1–5 are complete on GitHub `main`. Core infrastructure in `92a4b0e` pas
 | 3. DynamoDB repository — complete | Repository operations for save, find, user query, update, and delete | Mocked AWS SDK tests; no AWS calls or deployed table. |
 | 4. Basic REST API — complete | Health and receipt CRUD handlers; identity abstraction pending Cognito | Handler/service tests using local fixtures; no deployed API. |
 | 5. AWS core infrastructure — complete, issue #14 closed | CDK definitions for DynamoDB, Lambda, HTTP API, logging, and scoped IAM | TypeScript lint/build and `cdk synth`; stop before `cdk deploy`. |
-| 6. S3 uploads — implemented locally, issue #15 | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
+| 6. S3 uploads — complete, issue #15 closed | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
 | 7. Cognito | User pool, client, JWT authorizer, and frontend auth code | Unit tests and synth only; do not create AWS identity resources. |
 | 8. Frontend CRUD | Dashboard, receipt list/detail, upload, edit, and delete flows | Frontend lint/test/build against local mocks. |
 | 9. Textract | Asynchronous OCR handler, status transitions, and metadata updates | Mocked service tests and synth only; do not invoke Textract. |
