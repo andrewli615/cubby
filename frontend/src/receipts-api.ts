@@ -1,6 +1,6 @@
 import { accessToken } from "./auth";
 
-export type ReceiptStatus = "UPLOADED" | "PROCESSING" | "READY" | "OCR_FAILED";
+export type ReceiptStatus = "UPLOADED" | "PROCESSING" | "READY" | "REVIEW_NEEDED" | "OCR_FAILED";
 
 export interface Receipt {
   receiptId: string;
@@ -14,6 +14,13 @@ export interface Receipt {
   status: ReceiptStatus;
   createdAt: string;
   updatedAt: string;
+  ocr?: {
+    merchant: string | null;
+    purchaseDate: string | null;
+    total: number | null;
+    currency: string | null;
+    reviewRequired: boolean;
+  } | null;
 }
 
 export interface ReceiptFields {

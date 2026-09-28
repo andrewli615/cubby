@@ -4,6 +4,9 @@ import static com.cubby.repository.ReceiptFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.cubby.domain.ReceiptStatus;
+import com.cubby.domain.Receipt;
+import com.cubby.domain.OcrMetadata;
+import java.math.BigDecimal;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +38,19 @@ class ReceiptItemMapperTest {
         var stored = item("alice");
         stored.put("category", AttributeValue.builder().nul(true).build());
         assertNull(ReceiptItemMapper.fromItem(stored, "alice").category());
+    }
+
+    @Test
+    void roundTripsOptionalOcrMetadataAndJobWithoutChangingEnteredValues() {
+        Receipt entered = receipt("alice", "Office", ReceiptStatus.REVIEW_NEEDED);
+        Receipt completed = new Receipt(entered.receiptId(), entered.userId(), entered.merchant(),
+                entered.purchaseDate(), entered.total(), entered.currency(), entered.category(),
+                entered.imageKey(), entered.status(), entered.createdAt(), entered.updatedAt(), "job-1",
+                new OcrMetadata("OCR market", null, new BigDecimal("12.40"), "CAD", true));
+        var item = ReceiptItemMapper.toItem(completed);
+        assertEquals("12.40", item.get("ocr").m().get("total").n());
+        assertEquals(completed, ReceiptItemMapper.fromItem(item, "alice"));
+        assertEquals("Store", ReceiptItemMapper.fromItem(item, "alice").merchant());
     }
 
     @ParameterizedTest

@@ -4,5 +4,6 @@ public enum ReceiptStatus {
     UPLOADED,
     PROCESSING,
     READY,
+    REVIEW_NEEDED,
     OCR_FAILED
 }

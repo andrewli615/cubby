@@ -227,6 +227,15 @@ function Detail() {
           <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Receipt updated.</p>}
         <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">{receipt.merchant}</h1>
           <p className="mt-2 text-stone-600">{receipt.purchaseDate}</p></div><Status status={receipt.status} /></div>
+        {receipt.status === "REVIEW_NEEDED" && <p role="status" className="rounded bg-amber-50 p-3 text-amber-900">
+          OCR could not verify every detail. Check the extracted values and edit the receipt if needed.
+        </p>}
+        {receipt.ocr && <dl className="grid gap-2 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2">
+          <div><dt className="text-sm text-stone-600">OCR merchant</dt><dd>{receipt.ocr.merchant || "Not found"}</dd></div>
+          <div><dt className="text-sm text-stone-600">OCR date</dt><dd>{receipt.ocr.purchaseDate || "Not found"}</dd></div>
+          <div><dt className="text-sm text-stone-600">OCR total</dt><dd>{receipt.ocr.total ?? "Not found"}</dd></div>
+          <div><dt className="text-sm text-stone-600">OCR currency</dt><dd>{receipt.ocr.currency || "Not found"}</dd></div>
+        </dl>}
         <dl className="grid gap-4 rounded border border-stone-200 bg-white p-6 sm:grid-cols-2">
           <div><dt className="text-sm text-stone-600">Total</dt><dd className="text-xl font-semibold">{money(receipt)}</dd></div>
           <div><dt className="text-sm text-stone-600">Category</dt><dd>{receipt.category || "Uncategorized"}</dd></div>

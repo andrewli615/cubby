@@ -14,13 +14,13 @@ Phase 4 implements a local, dependency-injected HTTP API payload v2 adapter in `
 | PUT | /receipts/{receiptId} | 200 | Replaces editable metadata |
 | DELETE | /receipts/{receiptId} | 204 | Deletes the caller's receipt; empty response body |
 
-Receipt IDs must be canonical UUIDs. Unknown paths return 404; unsupported methods on known routes return 405 with an Allow header. PATCH and OCR routes are not implemented.
+Receipt IDs must be canonical UUIDs. Unknown paths return 404; unsupported methods on known routes return 405 with an Allow header. PATCH and OCR routes are not implemented; OCR runs asynchronously through stream and SNS events.
 
 ## Requests and identity
 
 The adapter reads `version: "2.0"`, `rawPath`, and `requestContext.http.method`. The body is a JSON string, optionally base64 encoded when `isBase64Encoded` is true. JSON parsing rejects duplicate fields, unknown fields, trailing content, invalid values and scalar type coercion.
 
-Receipt routes require an injected `IdentityProvider`. It receives only request-context metadata and must return a verified authenticated subject or an empty Optional. No production identity provider or default test user is installed. Body, query, path parameters and client identity headers cannot select the owner; body identity fields are rejected. Anonymous requests return 401 without calling the service. Cognito verification remains a later phase. The API adapter requires explicit constructor injection for local tests. Phase 5 adds `ReceiptLambdaHandler` as the packaged composition root: it uses an identity provider that rejects all receipt requests until verified authentication is integrated. The CDK receipt routes also require IAM authorization; this is not end-user identity integration. No API has been deployed.
+Receipt routes require an injected `IdentityProvider`. Production uses the verified Cognito JWT `sub` claim from API Gateway request context; body, query, path parameters and client identity headers cannot select the owner. Body identity fields are rejected. Anonymous requests return 401 without calling the service. The API adapter supports explicit constructor injection for local tests. No API has been deployed.
 
 Create example:
 
@@ -39,7 +39,7 @@ The image key must belong to the authenticated subject followed by `/`; empty, e
 
 PUT uses the same metadata fields except `imageKey`. It requires merchant, purchaseDate, total and currency; category is optional, and null or omission clears it. The original image, status, receipt ID, owner and creation time are preserved. Negative totals are rejected; monetary values use BigDecimal. The service generates UUIDs and timestamps, starts receipts as UPLOADED, and keeps updatedAt from moving backwards.
 
-Responses serialize the receipt's fields directly: UUID and ISO date/time strings, an enum status string, a JSON number for total, and a nullable category. Receipt responses use `Cache-Control: no-store`.
+Responses serialize the receipt's fields directly: UUID and ISO date/time strings, an enum status string, a JSON number for total, and a nullable category. Phase 9 adds `REVIEW_NEEDED`, `OCR_FAILED` transitions and an optional `ocr` object containing separate extracted merchant, purchase date, total, currency and `reviewRequired`. The internal Textract job ID is not returned. Receipt responses use `Cache-Control: no-store`.
 
 ## Errors and local validation
 
@@ -80,4 +80,4 @@ URLs are bearer authorizations: do not log or persist them. API responses use `C
 
 The [S3 conditional-write contract](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes-enforce.html) prevents replacement at an existing key. The bucket also denies deletion of originals, and its policy rejects signatures older than five minutes. Receipt deletion removes metadata only and retains the original object; retention cleanup would require a separate design. Concurrent/repeated uploads may return S3 409/412; request a new authorization/key when needed.
 
-The Lambda entry point remains fail-closed pending Cognito, including this route. CDK defines IAM authorization for it. Browser CORS is not yet configured; trusted frontend origins and browser smoke testing belong to frontend integration. Provisioning and live upload tests remain separate from this milestone.
+The Lambda entry point requires verified Cognito identity on this route. Browser CORS is not yet configured; trusted frontend origins and browser smoke testing belong to a separate rollout. Provisioning and live upload tests remain separate from this milestone.

@@ -1,6 +1,7 @@
 package com.cubby.repository;
 
 import com.cubby.domain.Receipt;
+import com.cubby.domain.OcrMetadata;
 import com.cubby.domain.ReceiptStatus;
 import com.cubby.domain.ReceiptValidation;
 import java.math.BigDecimal;
@@ -36,6 +37,10 @@ final class ReceiptItemMapper {
         item.put("status", string(receipt.status().name()));
         item.put("createdAt", string(receipt.createdAt().toString()));
         item.put("updatedAt", string(receipt.updatedAt().toString()));
+        if (receipt.ocrJobId() != null) item.put("ocrJobId", string(receipt.ocrJobId()));
+        if (receipt.ocr() != null) {
+            item.put("ocr", ocrValue(receipt.ocr()));
+        }
         return Map.copyOf(item);
     }
 
@@ -57,11 +62,22 @@ final class ReceiptItemMapper {
                 text(item, "currency"),
                 category == null || Boolean.TRUE.equals(category.nul()) ? null : text(item, "category"),
                 text(item, "imageKey"), ReceiptStatus.valueOf(text(item, "status")),
-                Instant.parse(text(item, "createdAt")), Instant.parse(text(item, "updatedAt")));
+                Instant.parse(text(item, "createdAt")), Instant.parse(text(item, "updatedAt")),
+                optionalText(item, "ocrJobId"), fromOcr(item.get("ocr")));
     }
 
     static AttributeValue string(String value) {
         return AttributeValue.builder().s(value).build();
+    }
+
+    static AttributeValue ocrValue(OcrMetadata ocr) {
+        Map<String, AttributeValue> extracted = new HashMap<>();
+        if (ocr.merchant() != null) extracted.put("merchant", string(ocr.merchant()));
+        if (ocr.purchaseDate() != null) extracted.put("purchaseDate", string(ocr.purchaseDate().toString()));
+        if (ocr.total() != null) extracted.put("total", AttributeValue.builder().n(ocr.total().toPlainString()).build());
+        if (ocr.currency() != null) extracted.put("currency", string(ocr.currency()));
+        extracted.put("reviewRequired", AttributeValue.builder().bool(ocr.reviewRequired()).build());
+        return AttributeValue.builder().m(extracted).build();
     }
 
     private static String text(Map<String, AttributeValue> item, String field) {
@@ -70,5 +86,22 @@ final class ReceiptItemMapper {
             throw new IllegalStateException("Receipt item is missing string " + field);
         }
         return value.s();
+    }
+
+    private static String optionalText(Map<String, AttributeValue> item, String field) {
+        AttributeValue value = item.get(field);
+        return value == null || Boolean.TRUE.equals(value.nul()) ? null : text(item, field);
+    }
+
+    private static OcrMetadata fromOcr(AttributeValue value) {
+        if (value == null || Boolean.TRUE.equals(value.nul())) return null;
+        Map<String, AttributeValue> map = value.m();
+        String date = optionalText(map, "purchaseDate");
+        AttributeValue total = map.get("total");
+        return new OcrMetadata(optionalText(map, "merchant"),
+                date == null ? null : LocalDate.parse(date),
+                total == null ? null : new BigDecimal(total.n()),
+                optionalText(map, "currency"),
+                map.containsKey("reviewRequired") && Boolean.TRUE.equals(map.get("reviewRequired").bool()));
     }
 }

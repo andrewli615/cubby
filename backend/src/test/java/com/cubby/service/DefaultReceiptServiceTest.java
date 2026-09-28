@@ -82,6 +82,23 @@ class DefaultReceiptServiceTest {
     }
 
     @Test
+    void editKeepsOcrJobAndExtractedMetadataSeparateFromEnteredValues() {
+        Receipt previous = receipt("alice", NOW.minusSeconds(10));
+        var extracted = new com.cubby.domain.OcrMetadata("OCR vendor", null, new BigDecimal("12.40"), "CAD", true);
+        Receipt reviewing = new Receipt(previous.receiptId(), previous.userId(), previous.merchant(),
+                previous.purchaseDate(), previous.total(), previous.currency(), previous.category(),
+                previous.imageKey(), ReceiptStatus.REVIEW_NEEDED, previous.createdAt(), previous.updatedAt(),
+                "job-1", extracted);
+        when(repository.find("alice", ID)).thenReturn(Optional.of(reviewing));
+        when(repository.update(eq("alice"), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        Receipt result = service.update("alice", ID, update());
+        assertEquals(ReceiptStatus.REVIEW_NEEDED, result.status());
+        assertEquals("job-1", result.ocrJobId());
+        assertEquals(extracted, result.ocr());
+        assertEquals("Changed", result.merchant());
+    }
+
+    @Test
     void missingUpdateDoesNotWriteAndMissingGetIsEmpty() {
         when(repository.find("alice", ID)).thenReturn(Optional.empty());
         assertTrue(service.get("alice", ID).isEmpty());

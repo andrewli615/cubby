@@ -60,7 +60,8 @@ public final class DefaultReceiptService implements ReceiptService {
         Instant updatedAt = now.isBefore(existing.updatedAt()) ? existing.updatedAt() : now;
         Receipt updated = new Receipt(existing.receiptId(), existing.userId(), request.merchant(),
                 request.purchaseDate(), request.total(), request.currency(), request.category(),
-                existing.imageKey(), existing.status(), existing.createdAt(), updatedAt);
+                existing.imageKey(), existing.status(), existing.createdAt(), updatedAt,
+                existing.ocrJobId(), existing.ocr());
         try {
             return owned(userId, repository.update(userId, updated));
         } catch (ReceiptWriteConflictException exception) {

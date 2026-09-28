@@ -20,6 +20,7 @@ dependencies {
     implementation platform('software.amazon.awssdk:bom:2.31.54')
     implementation 'software.amazon.awssdk:dynamodb'
     implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:textract'
     implementation platform('com.fasterxml.jackson:jackson-bom:2.19.2')
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'

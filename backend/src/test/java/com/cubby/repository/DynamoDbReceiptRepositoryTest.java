@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.cubby.domain.ReceiptStatus;
+import com.cubby.domain.OcrMetadata;
+import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -122,10 +125,13 @@ class DynamoDbReceiptRepositoryTest {
         assertEquals(expected, request.getValue().item());
         assertEquals("receipts-test", request.getValue().tableName());
         assertEquals("attribute_exists(#pk) AND attribute_exists(#sk)"
-                + " AND #created = :created AND #image = :image", request.getValue().conditionExpression());
-        assertEquals(Map.of("#pk", "PK", "#sk", "SK", "#created", "createdAt", "#image", "imageKey"),
+                + " AND #created = :created AND #image = :image"
+                + " AND #status = :status AND attribute_not_exists(#job)", request.getValue().conditionExpression());
+        assertEquals(Map.of("#pk", "PK", "#sk", "SK", "#created", "createdAt", "#image", "imageKey",
+                "#status", "status", "#job", "ocrJobId"),
                 request.getValue().expressionAttributeNames());
-        assertEquals(Map.of(":created", string(CREATED.toString()), ":image", string("alice/image")),
+        assertEquals(Map.of(":created", string(CREATED.toString()), ":image", string("alice/image"),
+                ":status", string("OCR_FAILED")),
                 request.getValue().expressionAttributeValues());
         verifyNoMoreInteractions(client);
     }
@@ -139,6 +145,39 @@ class DynamoDbReceiptRepositoryTest {
         assertSame(failure, conflict.getCause());
         verify(client).putItem(any(PutItemRequest.class));
         verifyNoMoreInteractions(client);
+    }
+
+    @Test
+    void ocrTransitionConditionGuardsOwnerImageStatusAndJobWithoutReplacingUserMetadata() {
+        var metadata = new OcrMetadata("Market", LocalDate.of(2026, 9, 28),
+                new BigDecimal("12.40"), "CAD", false);
+        assertTrue(repository.transitionOcr("alice", ID, "alice/originals/" + ID,
+                ReceiptStatus.PROCESSING, "job-1", ReceiptStatus.READY, null, metadata, CREATED.plusSeconds(2)));
+        var request = ArgumentCaptor.forClass(UpdateItemRequest.class);
+        verify(client).updateItem(request.capture());
+        var update = request.getValue();
+        assertEquals(key("alice"), update.key());
+        assertEquals("attribute_exists(#pk) AND attribute_exists(#sk)"
+                + " AND #image = :image AND #status = :from AND #job = :expectedJob",
+                update.conditionExpression());
+        assertEquals("SET #status = :to, #updated = :updated, #ocr = :ocr", update.updateExpression());
+        assertEquals(string("job-1"), update.expressionAttributeValues().get(":expectedJob"));
+        assertEquals(string("READY"), update.expressionAttributeValues().get(":to"));
+        assertFalse(update.expressionAttributeValues().containsKey(":job"));
+        assertEquals(string("Market"), update.expressionAttributeValues().get(":ocr").m().get("merchant"));
+        assertFalse(update.updateExpression().contains("merchant"));
+    }
+
+    @Test
+    void duplicateOcrTransitionIsAConditionalNoOp() {
+        when(client.updateItem(any(UpdateItemRequest.class)))
+                .thenThrow(ConditionalCheckFailedException.builder().message("duplicate").build());
+        assertFalse(repository.transitionOcr("alice", ID, "alice/originals/" + ID,
+                ReceiptStatus.UPLOADED, null, ReceiptStatus.PROCESSING, "job-1", null, CREATED.plusSeconds(2)));
+        var request = ArgumentCaptor.forClass(UpdateItemRequest.class);
+        verify(client).updateItem(request.capture());
+        assertTrue(request.getValue().conditionExpression().contains("attribute_not_exists(#job)"));
+        assertEquals("SET #status = :to, #updated = :updated, #job = :job", request.getValue().updateExpression());
     }
 
     @Test

@@ -1,8 +1,12 @@
 package com.cubby.repository;
 
 import com.cubby.domain.Receipt;
+import com.cubby.domain.OcrMetadata;
+import com.cubby.domain.ReceiptStatus;
 import com.cubby.domain.ReceiptValidation;
 import java.util.ArrayList;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,6 +20,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 /**
  * Uses an injected client and table name; never creates clients, credentials or resources.
@@ -85,19 +90,70 @@ public final class DynamoDbReceiptRepository implements ReceiptRepository {
     public Receipt update(String userId, Receipt receipt) {
         requireOwner(userId, receipt);
         Map<String, AttributeValue> item = ReceiptItemMapper.toItem(receipt);
-        Map<String, AttributeValue> conditions = Map.of(
-                ":created", item.get("createdAt"), ":image", item.get("imageKey"));
+        Map<String, AttributeValue> conditions = new HashMap<>(Map.of(
+                ":created", item.get("createdAt"), ":image", item.get("imageKey"),
+                ":status", item.get("status")));
+        String jobCondition = " AND attribute_not_exists(#job)";
+        if (receipt.ocrJobId() != null) {
+            conditions.put(":job", ReceiptItemMapper.string(receipt.ocrJobId()));
+            jobCondition = " AND #job = :job";
+        }
         try {
             client.putItem(PutItemRequest.builder().tableName(tableName).item(item)
                     .conditionExpression("attribute_exists(#pk) AND attribute_exists(#sk)"
-                            + " AND #created = :created AND #image = :image")
+                            + " AND #created = :created AND #image = :image"
+                            + " AND #status = :status" + jobCondition)
                     .expressionAttributeNames(Map.of("#pk", "PK", "#sk", "SK",
-                            "#created", "createdAt", "#image", "imageKey"))
+                            "#created", "createdAt", "#image", "imageKey",
+                            "#status", "status", "#job", "ocrJobId"))
                     .expressionAttributeValues(conditions).build());
             return receipt;
         } catch (ConditionalCheckFailedException exception) {
             throw new ReceiptWriteConflictException(
                     "Receipt is missing or its immutable fields do not match", exception);
+        }
+    }
+
+    @Override
+    public boolean transitionOcr(String userId, UUID receiptId, String imageKey,
+            ReceiptStatus from, String expectedJobId, ReceiptStatus to,
+            String jobId, OcrMetadata metadata, Instant updatedAt) {
+        ReceiptValidation.text(imageKey, "imageKey");
+        ReceiptValidation.required(from, "from");
+        ReceiptValidation.required(to, "to");
+        ReceiptValidation.required(updatedAt, "updatedAt");
+        Map<String, String> names = new HashMap<>(Map.of("#pk", "PK", "#sk", "SK", "#image", "imageKey",
+                "#status", "status", "#job", "ocrJobId", "#updated", "updatedAt"));
+        Map<String, AttributeValue> values = new HashMap<>(Map.of(
+                ":image", ReceiptItemMapper.string(imageKey),
+                ":from", ReceiptItemMapper.string(from.name()),
+                ":to", ReceiptItemMapper.string(to.name()),
+                ":updated", ReceiptItemMapper.string(updatedAt.toString())));
+        String condition = "attribute_exists(#pk) AND attribute_exists(#sk)"
+                + " AND #image = :image AND #status = :from";
+        if (expectedJobId == null) condition += " AND attribute_not_exists(#job)";
+        else {
+            condition += " AND #job = :expectedJob";
+            values.put(":expectedJob", ReceiptItemMapper.string(expectedJobId));
+        }
+        String update = "SET #status = :to, #updated = :updated";
+        if (jobId != null) {
+            update += ", #job = :job";
+            values.put(":job", ReceiptItemMapper.string(jobId));
+        }
+        if (metadata != null) {
+            update += ", #ocr = :ocr";
+            names.put("#ocr", "ocr");
+            values.put(":ocr", ReceiptItemMapper.ocrValue(metadata));
+        }
+        try {
+            client.updateItem(UpdateItemRequest.builder().tableName(tableName)
+                    .key(ReceiptItemMapper.key(userId, receiptId))
+                    .conditionExpression(condition).updateExpression(update)
+                    .expressionAttributeNames(names).expressionAttributeValues(values).build());
+            return true;
+        } catch (ConditionalCheckFailedException exception) {
+            return false;
         }
     }
 

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /** Immutable receipt snapshot. Category is optional; all other values are required. */
 public record Receipt(
@@ -17,7 +18,16 @@ public record Receipt(
         String imageKey,
         ReceiptStatus status,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        @JsonIgnore String ocrJobId,
+        OcrMetadata ocr) {
+
+    public Receipt(UUID receiptId, String userId, String merchant, LocalDate purchaseDate,
+            BigDecimal total, String currency, String category, String imageKey,
+            ReceiptStatus status, Instant createdAt, Instant updatedAt) {
+        this(receiptId, userId, merchant, purchaseDate, total, currency, category,
+                imageKey, status, createdAt, updatedAt, null, null);
+    }
 
     public Receipt {
         ReceiptValidation.required(receiptId, "receiptId");
@@ -29,6 +39,9 @@ public record Receipt(
         ReceiptValidation.required(updatedAt, "updatedAt");
         if (updatedAt.isBefore(createdAt)) {
             throw new IllegalArgumentException("updatedAt must not precede createdAt");
+        }
+        if (ocrJobId != null) {
+            ReceiptValidation.text(ocrJobId, "ocrJobId");
         }
     }
 }

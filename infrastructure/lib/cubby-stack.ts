@@ -5,6 +5,9 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import { DynamoEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { AccessLogFormat } from "aws-cdk-lib/aws-apigateway";
 import * as apigateway from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
@@ -39,6 +42,7 @@ export class CubbyStack extends cdk.Stack {
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       deletionProtection: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      stream: dynamodb.StreamViewType.KEYS_ONLY,
     });
 
     const images = new s3.Bucket(this, "ReceiptImages", {
@@ -138,6 +142,71 @@ export class CubbyStack extends cdk.Stack {
       resources: [originalsArn],
       conditions: { StringEquals: { "s3:if-none-match": "*" } },
     }));
+
+    // A receipt INSERT follows the completed immutable upload and starts OCR off the API path.
+    const completionTopic = new sns.Topic(this, "TextractCompletion", {
+      topicName: "AmazonTextract-Cubby",
+    });
+    const textractRole = new iam.Role(this, "TextractNotificationRole", {
+      assumedBy: new iam.ServicePrincipal("textract.amazonaws.com", {
+        conditions: {
+          ArnLike: { "aws:SourceArn": this.formatArn({ service: "textract", region: "*", resource: "*" }) },
+          StringEquals: { "aws:SourceAccount": this.account },
+        },
+      }),
+    });
+    textractRole.addToPolicy(new iam.PolicyStatement({
+      actions: ["sns:Publish"], resources: [completionTopic.topicArn],
+    }));
+    const startLogs = new logs.LogGroup(this, "OcrStartLogs", {
+      retention: logs.RetentionDays.ONE_MONTH, removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+    const finishLogs = new logs.LogGroup(this, "OcrCompletionLogs", {
+      retention: logs.RetentionDays.ONE_MONTH, removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+    const startRole = new iam.Role(this, "OcrStartRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+    const finishRole = new iam.Role(this, "OcrCompletionRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+    const sharedOcrEnvironment = {
+      RECEIPTS_TABLE_NAME: receipts.tableName,
+      RECEIPT_IMAGES_BUCKET: images.bucketName,
+      TEXTRACT_TOPIC_ARN: completionTopic.topicArn,
+      TEXTRACT_ROLE_ARN: textractRole.roleArn,
+    };
+    const starter = new lambda.Function(this, "OcrStartFunction", {
+      runtime: lambda.Runtime.JAVA_21, architecture: lambda.Architecture.X86_64,
+      handler: "com.cubby.ocr.OcrStartHandler::handleRequest", code: lambda.Code.fromAsset(assetPath),
+      memorySize: 512, timeout: cdk.Duration.seconds(30), role: startRole,
+      logGroup: startLogs, loggingFormat: lambda.LoggingFormat.JSON,
+      environment: sharedOcrEnvironment,
+    });
+    const completer = new lambda.Function(this, "OcrCompletionFunction", {
+      runtime: lambda.Runtime.JAVA_21, architecture: lambda.Architecture.X86_64,
+      handler: "com.cubby.ocr.OcrCompletionHandler::handleRequest", code: lambda.Code.fromAsset(assetPath),
+      memorySize: 512, timeout: cdk.Duration.minutes(2), role: finishRole,
+      logGroup: finishLogs, loggingFormat: lambda.LoggingFormat.JSON,
+      environment: sharedOcrEnvironment,
+    });
+    starter.addEventSource(new DynamoEventSource(receipts, {
+      startingPosition: lambda.StartingPosition.TRIM_HORIZON,
+      batchSize: 1, retryAttempts: 10, maxRecordAge: cdk.Duration.hours(6),
+      filters: [lambda.FilterCriteria.filter({ eventName: lambda.FilterRule.isEqual("INSERT") })],
+    }));
+    completionTopic.addSubscription(new subscriptions.LambdaSubscription(completer));
+    receipts.grant(starter, "dynamodb:GetItem", "dynamodb:UpdateItem");
+    receipts.grant(completer, "dynamodb:GetItem", "dynamodb:UpdateItem");
+    startLogs.grants.write(startRole);
+    finishLogs.grants.write(finishRole);
+    startRole.addToPolicy(new iam.PolicyStatement({ actions: ["textract:StartExpenseAnalysis"], resources: ["*"] }));
+    startRole.addToPolicy(new iam.PolicyStatement({
+      actions: ["iam:PassRole"], resources: [textractRole.roleArn],
+      conditions: { StringEquals: { "iam:PassedToService": "textract.amazonaws.com" } },
+    }));
+    startRole.addToPolicy(new iam.PolicyStatement({ actions: ["s3:GetObject"], resources: [originalsArn] }));
+    finishRole.addToPolicy(new iam.PolicyStatement({ actions: ["textract:GetExpenseAnalysis"], resources: ["*"] }));
 
     const api = new apigateway.HttpApi(this, "HttpApi", {
       createDefaultStage: false,

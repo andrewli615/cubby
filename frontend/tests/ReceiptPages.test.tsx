@@ -119,6 +119,18 @@ describe("receipt screens", () => {
     expect(await screen.findByText("Receipt updated.")).toBeInTheDocument();
   });
 
+  it("shows ambiguous OCR values separately for review", async () => {
+    api.get.mockResolvedValueOnce({ ...receipt, status: "REVIEW_NEEDED", ocr: {
+      merchant: "OCR Market", purchaseDate: null, total: 12.4, currency: "CAD", reviewRequired: true,
+    } });
+    show(`/receipts/${receipt.receiptId}`);
+    expect(await screen.findByRole("heading", { name: "Office Store" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("OCR could not verify every detail");
+    expect(screen.getByText("OCR Market")).toBeInTheDocument();
+    expect(screen.getByText("Not found")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
+  });
+
   it("requires confirmation before deleting and shows success", async () => {
     show(`/receipts/${receipt.receiptId}`);
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
