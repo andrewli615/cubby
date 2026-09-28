@@ -20,6 +20,9 @@ const logIds = ofType("AWS::Logs::LogGroup").map(([id]) => id);
 const functionLogId = logIds.find((id) => id.startsWith("FunctionLogs"))!;
 const apiId = ofType("AWS::ApiGatewayV2::Api")[0]![0];
 const bucketId = ofType("AWS::S3::Bucket")[0]![0];
+const userPoolId = ofType("AWS::Cognito::UserPool")[0]![0];
+const clientId = ofType("AWS::Cognito::UserPoolClient")[0]![0];
+const authorizerId = ofType("AWS::ApiGatewayV2::Authorizer")[0]![0];
 const originalsArn = { "Fn::Join": ["", [{ "Fn::GetAtt": [bucketId, "Arn"] }, "/*/originals/*"]] };
 
 test("only the intended core resources are synthesized", () => {
@@ -29,6 +32,8 @@ test("only the intended core resources are synthesized", () => {
     "AWS::ApiGatewayV2::Api": 1, "AWS::ApiGatewayV2::Integration": 1,
     "AWS::ApiGatewayV2::Route": 7, "AWS::ApiGatewayV2::Stage": 1,
     "AWS::S3::Bucket": 1, "AWS::S3::BucketPolicy": 1,
+    "AWS::Cognito::UserPool": 1, "AWS::Cognito::UserPoolClient": 1,
+    "AWS::ApiGatewayV2::Authorizer": 1,
   };
   assert.deepEqual([...new Set(Object.values(resources).map((value) => value.Type))].sort(),
     Object.keys(expected).sort());
@@ -55,7 +60,8 @@ test("Java 21 Lambda uses the packaged entry point and stack-local table and log
   template.hasResourceProperties("AWS::Lambda::Function", {
     Runtime: "java21",
     Handler: "com.cubby.handler.ReceiptLambdaHandler::handleRequest",
-    Environment: { Variables: { RECEIPTS_TABLE_NAME: { Ref: tableId }, RECEIPT_IMAGES_BUCKET: { Ref: bucketId } } },
+    Environment: { Variables: { RECEIPTS_TABLE_NAME: { Ref: tableId }, RECEIPT_IMAGES_BUCKET: { Ref: bucketId },
+      COGNITO_USER_POOL_ID: { Ref: userPoolId }, COGNITO_CLIENT_ID: { Ref: clientId } } },
     LoggingConfig: { LogFormat: "JSON", LogGroup: { Ref: functionLogId } },
     Code: { S3Bucket: { "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-west-2" },
       S3Key: Match.stringLikeRegexp("\\.zip$") },
@@ -88,19 +94,52 @@ test("execution role has only receipt table, log-stream and conditional upload o
   });
 });
 
-test("health is the only anonymous route and all six receipt routes require IAM", () => {
+test("health is the only anonymous route and all six receipt routes require scoped JWT access tokens", () => {
   const routes = ofType("AWS::ApiGatewayV2::Route").map(([, value]) => value.Properties);
   assert.deepEqual(routes.filter((route) => route.AuthorizationType === "NONE").map((route) => route.RouteKey),
     ["GET /health"]);
-  assert.deepEqual(routes.filter((route) => route.AuthorizationType === "AWS_IAM")
+  assert.deepEqual(routes.filter((route) => route.AuthorizationType === "JWT")
     .map((route) => route.RouteKey).sort(),
   ["DELETE /receipts/{receiptId}", "GET /receipts", "GET /receipts/{receiptId}",
     "POST /receipts", "POST /receipts/upload-url", "PUT /receipts/{receiptId}"]);
+  for (const route of routes.filter((entry) => entry.AuthorizationType === "JWT")) {
+    assert.deepEqual(route.AuthorizerId, { Ref: authorizerId });
+    assert.deepEqual(route.AuthorizationScopes, ["aws.cognito.signin.user.admin"]);
+  }
   template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
     ProtocolType: "HTTP", CorsConfiguration: Match.absent(),
   });
   template.hasResourceProperties("AWS::ApiGatewayV2::Integration", {
     IntegrationType: "AWS_PROXY", PayloadFormatVersion: "2.0",
+  });
+});
+
+test("Cognito SPA client and API authorizer share the selected pool, client and Region", () => {
+  template.hasResourceProperties("AWS::Cognito::UserPool", {
+    AdminCreateUserConfig: { AllowAdminCreateUserOnly: true },
+    AutoVerifiedAttributes: ["email"],
+    DeletionProtection: "ACTIVE",
+    MfaConfiguration: "OPTIONAL",
+    EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
+    UsernameAttributes: ["email"],
+  });
+  assert.equal(resources[userPoolId]!.DeletionPolicy, "Retain");
+  template.hasResourceProperties("AWS::Cognito::UserPoolClient", {
+    UserPoolId: { Ref: userPoolId },
+    GenerateSecret: false,
+    ExplicitAuthFlows: ["ALLOW_USER_SRP_AUTH"],
+    PreventUserExistenceErrors: "ENABLED",
+    RefreshTokenRotation: { Feature: "ENABLED", RetryGracePeriodSeconds: 30 },
+    EnableTokenRevocation: true,
+    AllowedOAuthFlowsUserPoolClient: false,
+    CallbackURLs: Match.absent(),
+  });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
+    ApiId: { Ref: apiId },
+    AuthorizerType: "JWT",
+    IdentitySource: ["$request.header.Authorization"],
+    JwtConfiguration: { Audience: [{ Ref: clientId }],
+      Issuer: { "Fn::GetAtt": [userPoolId, "ProviderURL"] } },
   });
 });
 

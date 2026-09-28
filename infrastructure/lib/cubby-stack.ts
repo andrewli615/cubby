@@ -1,12 +1,13 @@
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { AccessLogFormat } from "aws-cdk-lib/aws-apigateway";
 import * as apigateway from "aws-cdk-lib/aws-apigatewayv2";
-import { HttpIamAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { Construct } from "constructs";
 import { existsSync } from "node:fs";
@@ -47,6 +48,29 @@ export class CubbyStack extends cdk.Stack {
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       autoDeleteObjects: false,
+    });
+    const users = new cognito.UserPool(this, "Users", {
+      selfSignUpEnabled: false,
+      signInAliases: { email: true },
+      autoVerify: { email: true },
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      mfa: cognito.Mfa.OPTIONAL,
+      mfaSecondFactor: { sms: false, otp: true },
+      passwordPolicy: { minLength: 12, requireLowercase: true, requireUppercase: true,
+        requireDigits: true, requireSymbols: true },
+      deletionProtection: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+    const webClient = users.addClient("WebClient", {
+      generateSecret: false,
+      disableOAuth: true,
+      authFlows: { userSrp: true },
+      preventUserExistenceErrors: true,
+      accessTokenValidity: cdk.Duration.minutes(15),
+      idTokenValidity: cdk.Duration.minutes(15),
+      refreshTokenValidity: cdk.Duration.days(1),
+      refreshTokenRotationGracePeriod: cdk.Duration.seconds(30),
+      enableTokenRevocation: true,
     });
     const originalsArn = images.arnForObjects("*/originals/*");
     images.addToResourcePolicy(new iam.PolicyStatement({
@@ -98,6 +122,8 @@ export class CubbyStack extends cdk.Stack {
       environment: {
         RECEIPTS_TABLE_NAME: receipts.tableName,
         RECEIPT_IMAGES_BUCKET: images.bucketName,
+        COGNITO_USER_POOL_ID: users.userPoolId,
+        COGNITO_CLIENT_ID: webClient.userPoolClientId,
       },
     });
 
@@ -115,8 +141,11 @@ export class CubbyStack extends cdk.Stack {
 
     const api = new apigateway.HttpApi(this, "HttpApi", {
       createDefaultStage: false,
-      defaultAuthorizer: new HttpIamAuthorizer(),
-      description: "Cubby core API; receipt identity integration remains disabled",
+      defaultAuthorizer: new HttpJwtAuthorizer("ReceiptJwt", users.userPoolProviderUrl, {
+        jwtAudience: [webClient.userPoolClientId],
+        identitySource: ["$request.header.Authorization"],
+      }),
+      description: "Cubby API with Cognito access-token authorization for receipt routes",
     });
     const integration = new HttpLambdaIntegration("ReceiptIntegration", handler, {
       payloadFormatVersion: apigateway.PayloadFormatVersion.VERSION_2_0,
@@ -136,6 +165,7 @@ export class CubbyStack extends cdk.Stack {
         methods: [definition.method],
         integration,
         ...(definition.public ? { authorizer: new apigateway.HttpNoneAuthorizer() } : {}),
+        ...(!definition.public ? { authorizationScopes: ["aws.cognito.signin.user.admin"] } : {}),
       });
       // The pinned integration emits literal path parameters and method/stage wildcards.
       // Its L2 has no permission-ARN option, so refine the generated L1 permission.
@@ -167,5 +197,7 @@ export class CubbyStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, "ApiEndpoint", { value: api.apiEndpoint });
     new cdk.CfnOutput(this, "ReceiptsTableName", { value: receipts.tableName });
+    new cdk.CfnOutput(this, "CognitoUserPoolId", { value: users.userPoolId });
+    new cdk.CfnOutput(this, "CognitoClientId", { value: webClient.userPoolClientId });
   }
 }

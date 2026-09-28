@@ -3,30 +3,31 @@ package com.cubby.handler;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.cubby.domain.ReceiptValidation;
+import com.cubby.auth.CognitoJwtIdentityProvider;
+import com.cubby.auth.IdentityProvider;
 import com.cubby.repository.DynamoDbReceiptRepository;
 import com.cubby.service.DefaultReceiptService;
 import com.cubby.service.ReceiptService;
 import com.cubby.service.S3ReceiptUploads;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import java.util.Map;
-import java.util.Optional;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 /**
- * Lambda composition root. Receipt routes deliberately fail closed until a verified
- * identity provider is installed in the authentication milestone. IAM caller metadata
- * and request-provided identities must never become receipt owners.
+ * Lambda composition root. Receipt identity comes only from API Gateway JWT context.
  */
 public final class ReceiptLambdaHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     private final ReceiptApiHandler delegate;
 
     public ReceiptLambdaHandler() {
-        this(configuredService());
+        this(configuredService(), new CognitoJwtIdentityProvider(
+                System.getenv("AWS_REGION"), System.getenv("COGNITO_USER_POOL_ID"),
+                System.getenv("COGNITO_CLIENT_ID")));
     }
 
-    ReceiptLambdaHandler(ReceiptService service) {
-        delegate = new ReceiptApiHandler(service, ignored -> Optional.empty());
+    ReceiptLambdaHandler(ReceiptService service, IdentityProvider identities) {
+        delegate = new ReceiptApiHandler(service, identities);
     }
 
     @Override

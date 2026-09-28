@@ -2,7 +2,7 @@
 
 ## Current scope
 
-- Follow the current web/serverless plan in `docs/AWS_MILESTONES.md` and the open GitHub issues. Phases 1–6 are complete. Issues #14 and #15 passed acceptance review and are closed; core CDK infrastructure and private receipt uploads are defined and validated locally. Do not begin the Cognito milestone without a new requested milestone. Take one issue at a time and check the working tree before editing. Issues #1–#11 describe the retired iOS/local Spring/PostgreSQL direction and are closed; do not reopen or implement them.
+- Follow the current web/serverless plan in `docs/AWS_MILESTONES.md` and the open GitHub issues. Phases 1–7 are complete. Issues #14–#16 passed local acceptance review; core infrastructure, private receipt uploads, and Cognito authentication are defined. Begin Phase 8 only on a new request. Take one issue at a time and check the working tree before editing. Issues #1–#11 describe the retired iOS/local Spring/PostgreSQL direction and are closed; do not reopen or implement them.
 - The product is a web application. Use React, TypeScript, Vite, Tailwind CSS, and React Router for the frontend; Java 21, Gradle, AWS Lambda, and AWS SDK for Java 2.x for the backend; and AWS CDK with strict TypeScript for infrastructure.
 - Do not add Spring Boot, PostgreSQL, or Docker services. Keep infrastructure validation local with `cdk synth`; deployment is outside implementation milestones unless a project issue explicitly defines it.
 - Treat the current React/TypeScript web application and Java 21 Lambda architecture as authoritative. Do not restore the earlier iOS-first architecture; the retained `ios/` prototype is historical and out of the current build scope unless the user changes the plan.
