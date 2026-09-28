@@ -11,7 +11,6 @@ backend/          Java 21 Lambda handlers and JUnit tests
 frontend/         React, TypeScript, Vite, Tailwind CSS, and Vitest
 infrastructure/   Strict TypeScript AWS CDK application
 docs/             Architecture and development references
-ios/              Existing SwiftUI prototype, retained from the prior project
 ```
 
 ## Prerequisites
