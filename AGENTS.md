@@ -2,7 +2,7 @@
 
 ## Current scope
 
-- Follow the current web/serverless plan in `docs/AWS_MILESTONES.md` and the open GitHub issues. Phases 1–10 are complete. Issues #14–#19 passed local acceptance review and are closed; Phase 10 receipt filtering and sorting was pushed in `a0c33b7`. Begin Phase 11 only on a new request. Take one issue at a time and check the working tree before editing. Issues #1–#11 describe the retired iOS/local Spring/PostgreSQL direction and are closed; do not reopen or implement them.
+- Follow the current web/serverless plan in `docs/AWS_MILESTONES.md` and the open GitHub issues. Phases 1–11 are complete. Issues #14–#20 passed acceptance review and are closed; Phase 11 validation CI and the future OIDC design were pushed in `9eac2c1`. Begin any further milestone only on a new request. Take one issue at a time and check the working tree before editing. Issues #1–#11 describe the retired iOS/local Spring/PostgreSQL direction and are closed; do not reopen or implement them.
 - The product is a web application. Use React, TypeScript, Vite, Tailwind CSS, and React Router for the frontend; Java 21, Gradle, AWS Lambda, and AWS SDK for Java 2.x for the backend; and AWS CDK with strict TypeScript for infrastructure.
 - Do not add Spring Boot, PostgreSQL, or Docker services. Keep infrastructure validation local with `cdk synth`; deployment is outside implementation milestones unless a project issue explicitly defines it.
 - Treat the current React/TypeScript web application and Java 21 Lambda architecture as authoritative. Do not restore the earlier iOS-first architecture; the retained `ios/` prototype is historical and out of the current build scope unless the user changes the plan.
