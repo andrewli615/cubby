@@ -10,10 +10,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Domain contract only. Each userId must come from verified authentication claims.
+ * Receipt operations contract. Each userId must come from verified authentication claims.
  * Implementations must scope all operations and image keys to that owner, preserve
  * receipt identity and createdAt on updates, and assign status and timestamps.
- * Persistence, upload signing and authentication are deferred to later phases.
+ * DefaultReceiptService implements CRUD through a repository; upload signing and authentication wiring remain deferred.
  */
 public interface ReceiptService {
     Receipt create(String userId, CreateReceiptRequest request);

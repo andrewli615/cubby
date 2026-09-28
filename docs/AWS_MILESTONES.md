@@ -13,14 +13,14 @@ AWS documents that the EC2, Bedrock playground, Lambda web app, and RDS/Aurora E
 
 ## Application roadmap
 
-Complete one phase at a time. Phase 1 is committed to GitHub `main`; Phase 2 is the next application milestone. The working tree may already contain Phase 2 work, so inspect it and continue from the current state instead of recreating or overwriting files.
+Complete one phase at a time. Phases 1–3 are complete on GitHub `main`. Phase 3 was verified in commit `e43a2d1` with 88 passing backend tests, and issue #12 is closed as completed. Phase 4 / issue #13 is the next application milestone. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
 | 1. Repository bootstrap | Java 21 Lambda health handler, React/Vite starter, empty strict TypeScript CDK app, project docs | Backend tests/build; frontend lint/test/build; CDK lint/build/synth. Complete. |
-| 2. Domain layer | Immutable `Receipt`, `ReceiptStatus`, DTOs, validation, `ReceiptService` skeleton | JUnit unit tests and backend build; no AWS calls. |
-| 3. DynamoDB repository | Repository operations for save, find, user query, update, and delete | Mocked AWS SDK tests; no AWS calls or deployed table. |
-| 4. Basic REST API | Health and receipt CRUD handlers; identity abstraction pending Cognito | Handler/service tests using local fixtures; no deployed API. |
+| 2. Domain layer — complete | Immutable `Receipt`, `ReceiptStatus`, DTOs, validation, `ReceiptService` skeleton | JUnit unit tests and backend build; no AWS calls. |
+| 3. DynamoDB repository — complete | Repository operations for save, find, user query, update, and delete | Mocked AWS SDK tests; no AWS calls or deployed table. |
+| 4. Basic REST API — next, issue #13 | Health and receipt CRUD handlers; identity abstraction pending Cognito | Handler/service tests using local fixtures; no deployed API. |
 | 5. AWS core infrastructure | CDK definitions for DynamoDB, Lambda, HTTP API, logging, and scoped IAM | TypeScript lint/build and `cdk synth`; stop before `cdk deploy`. |
 | 6. S3 uploads | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
 | 7. Cognito | User pool, client, JWT authorizer, and frontend auth code | Unit tests and synth only; do not create AWS identity resources. |
