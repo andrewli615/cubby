@@ -43,6 +43,30 @@ describe("typed receipt API client", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("encodes combined list filters and sorting with the authenticated request", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await receiptApi.list({ merchant: " Corner Shop ", category: "Office Supplies",
+      dateFrom: "2026-09-01", dateTo: "2026-09-28", sort: "total_desc" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://localhost:3000/receipts?merchant=Corner+Shop&category=Office+Supplies" +
+      "&dateFrom=2026-09-01&dateTo=2026-09-28&sort=total_desc");
+    expect(init.headers.Authorization).toBe("Bearer verified-access-token");
+    expect(url).not.toContain("userId");
+    await receiptApi.list({ merchant: " ", category: "" });
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3000/receipts");
+  });
+
+  it("rejects invalid date ranges and sort values before fetch", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(receiptApi.list({ dateFrom: "2026-02-30" })).rejects.toThrow("Invalid dateFrom");
+    await expect(receiptApi.list({ dateFrom: "2026-09-29", dateTo: "2026-09-28" }))
+      .rejects.toThrow("start date");
+    await expect(receiptApi.list({ sort: "unknown" as "date_desc" })).rejects.toThrow("Invalid receipt sort");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("uses all browser-settable signed headers and sends no Cognito token to the presigned URL", async () => {
     const file = new File(["receipt bytes"], "receipt.png", { type: "image/png" });
     const authorization = { uploadUrl: "https://private-bucket.example/opaque-signature",

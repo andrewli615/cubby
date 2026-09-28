@@ -46,7 +46,6 @@ class ReceiptLambdaHandlerTest {
         String subject = "920a995d-693c-4634-9fcf-985b1ddc0199";
         var event = ReceiptApiHandlerTest.event("GET", "/receipts", null);
         event.put("userId", "attacker");
-        event.put("queryStringParameters", Map.of("userId", "attacker"));
         event.put("headers", Map.of("x-user-id", "attacker"));
         event.put("requestContext", Map.of("http", Map.of("method", "GET"),
                 "authorizer", Map.of("jwt", Map.of("claims", Map.of(

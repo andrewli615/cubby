@@ -56,6 +56,43 @@ describe("receipt screens", () => {
     expect(await screen.findByText("No receipts yet")).toBeInTheDocument();
   });
 
+  it("applies combined filters, sort, empty state, and reset", async () => {
+    api.list.mockResolvedValueOnce([receipt]).mockResolvedValueOnce([]).mockResolvedValueOnce([receipt]);
+    show();
+    expect(await screen.findByRole("link", { name: /Office Store/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Merchant"), { target: { value: " Office " } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Travel" } });
+    fireEvent.change(screen.getByLabelText("Date from"), { target: { value: "2026-09-01" } });
+    fireEvent.change(screen.getByLabelText("Date to"), { target: { value: "2026-09-28" } });
+    fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "merchant_asc" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ merchant: "Office", category: "Travel",
+      dateFrom: "2026-09-01", dateTo: "2026-09-28", sort: "merchant_asc" }));
+    expect(await screen.findByText("No receipts match these filters")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({}));
+    expect(await screen.findByRole("link", { name: /Office Store/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Merchant")).toHaveValue("");
+    expect(screen.getByLabelText("Sort by")).toHaveValue("date_desc");
+  });
+
+  it("validates the date range and applies another sort without changing the owner", async () => {
+    api.list.mockResolvedValue([receipt]);
+    show();
+    expect(await screen.findByRole("link", { name: /Office Store/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Date from"), { target: { value: "2026-09-29" } });
+    fireEvent.change(screen.getByLabelText("Date to"), { target: { value: "2026-09-28" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("start date");
+    expect(api.list).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Date to"), { target: { value: "2026-09-30" } });
+    fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "total_desc" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ merchant: "", category: "",
+      dateFrom: "2026-09-29", dateTo: "2026-09-30", sort: "total_desc" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("validates a create form and uploads before creating metadata", async () => {
     show("/receipts/new");
     fireEvent.change(screen.getByLabelText("Merchant"), { target: { value: "Office Store" } });

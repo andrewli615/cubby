@@ -7,6 +7,7 @@ import com.cubby.dto.CreateReceiptRequest;
 import com.cubby.dto.UpdateReceiptRequest;
 import com.cubby.dto.UploadUrlRequest;
 import com.cubby.service.ReceiptConflictException;
+import com.cubby.service.ReceiptListQuery;
 import com.cubby.service.ReceiptNotFoundException;
 import com.cubby.service.ReceiptService;
 import java.util.HashMap;
@@ -64,7 +65,18 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
                         yield ApiJson.response(201, receipt,
                                 Map.of("location", "/receipts/" + receipt.receiptId()));
                     }
-                    case "GET" -> ApiJson.response(200, service.list(userId));
+                    case "GET" -> {
+                        Object raw = event.get("rawQueryString");
+                        if (raw == null || "".equals(raw)) {
+                            Object parameters = event.get("queryStringParameters");
+                            if (parameters instanceof Map<?, ?> map && !map.isEmpty()) {
+                                throw new IllegalArgumentException("Raw query string is required");
+                            }
+                            yield ApiJson.response(200, service.list(userId));
+                        }
+                        if (!(raw instanceof String query)) throw new IllegalArgumentException("Invalid query string");
+                        yield ApiJson.response(200, service.list(userId, ReceiptListQuery.parse(query)));
+                    }
                     default -> methodNotAllowed("GET, POST");
                 };
             }

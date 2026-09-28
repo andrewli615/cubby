@@ -10,6 +10,7 @@ import com.cubby.domain.ReceiptStatus;
 import com.cubby.dto.CreateReceiptRequest;
 import com.cubby.dto.UpdateReceiptRequest;
 import com.cubby.service.ReceiptConflictException;
+import com.cubby.service.ReceiptListQuery;
 import com.cubby.service.ReceiptNotFoundException;
 import com.cubby.service.ReceiptService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -76,22 +77,33 @@ class ReceiptApiHandlerTest {
 
     @Test
     void listReturnsJsonArrayAndUsesOnlyProviderIdentity() throws Exception {
-        when(service.list("alice")).thenReturn(List.of(receipt()));
+        when(service.list(eq("alice"), any(ReceiptListQuery.class))).thenReturn(List.of(receipt()));
         var event = event("GET", "/receipts", null);
-        event.put("queryStringParameters", Map.of("userId", "bob"));
-        event.put("rawQueryString", "userId=bob");
+        event.put("queryStringParameters", Map.of("merchant", "Store"));
+        event.put("rawQueryString", "merchant=Store&sort=date_desc");
         event.put("headers", Map.of("x-user-id", "bob", "authorization", "unverified"));
         event.put("userId", "bob");
         var response = handler.handleRequest(event, null);
         assertEquals(200, response.get("statusCode"));
         assertTrue(json(response).isArray());
         assertEquals("alice", json(response).get(0).get("userId").asText());
-        verify(service).list("alice");
+        verify(service).list("alice", ReceiptListQuery.parse("merchant=Store&sort=date_desc"));
         ArgumentCaptor<Map<String, Object>> context = ArgumentCaptor.captor();
         verify(identities).authenticatedUserId(context.capture());
         assertEquals(event.get("requestContext"), context.getValue());
         assertFalse(context.getValue().containsKey("headers"));
         verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void rejectsUnknownDuplicateAndInvalidListQueriesBeforeServiceCall() {
+        for (String raw : List.of("userId=bob", "dateFrom=2026-02-30",
+                "dateFrom=2026-10-01&dateTo=2026-09-01", "sort=unknown", "merchant=a&merchant=b")) {
+            var event = event("GET", "/receipts", null);
+            event.put("rawQueryString", raw);
+            assertError(400, "INVALID_REQUEST", handler.handleRequest(event, null));
+        }
+        verifyNoInteractions(service);
     }
 
     @Test

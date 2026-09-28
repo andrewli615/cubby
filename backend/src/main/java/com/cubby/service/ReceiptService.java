@@ -24,6 +24,8 @@ public interface ReceiptService {
 
     List<Receipt> list(String userId);
 
+    List<Receipt> list(String userId, ReceiptListQuery query);
+
     void delete(String userId, UUID receiptId);
 
     UploadUrlResponse createUploadUrl(String userId, UploadUrlRequest request);

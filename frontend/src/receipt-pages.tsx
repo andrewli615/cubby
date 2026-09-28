@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { receiptApi, validateUpload, type Receipt, type ReceiptFields } from "./receipts-api";
+import { receiptApi, validateUpload, type Receipt, type ReceiptFields,
+  type ReceiptListFilters, type ReceiptSort } from "./receipts-api";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong. Try again.";
@@ -26,16 +27,40 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
+  const [draft, setDraft] = useState({ merchant: "", category: "", dateFrom: "", dateTo: "",
+    sort: "date_desc" as ReceiptSort });
+  const [applied, setApplied] = useState<ReceiptListFilters>({});
+  const [filterError, setFilterError] = useState("");
+  const hasFilters = Boolean(applied.merchant || applied.category || applied.dateFrom || applied.dateTo);
 
   useEffect(() => {
     let active = true;
-    void receiptApi.list().then((result) => {
+    void receiptApi.list(applied).then((result) => {
       if (active) { setReceipts(result); setError(""); setLoading(false); }
     }).catch((failure: unknown) => {
       if (active) { setError(errorMessage(failure)); setLoading(false); }
     });
     return () => { active = false; };
-  }, [reload]);
+  }, [applied, reload]);
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (draft.dateFrom && draft.dateTo && draft.dateFrom > draft.dateTo) {
+      setFilterError("The start date must not be after the end date.");
+      return;
+    }
+    setFilterError("");
+    setLoading(true);
+    setApplied({ merchant: draft.merchant.trim(), category: draft.category.trim(),
+      dateFrom: draft.dateFrom, dateTo: draft.dateTo, sort: draft.sort });
+  }
+
+  function clearFilters() {
+    setDraft({ merchant: "", category: "", dateFrom: "", dateTo: "", sort: "date_desc" });
+    setApplied({});
+    setFilterError("");
+    setLoading(true);
+  }
 
   return <section className="space-y-6">
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -45,15 +70,40 @@ function Dashboard() {
     </div>
     {new URLSearchParams(location.search).has("deleted") &&
       <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Receipt deleted.</p>}
+    <form onSubmit={applyFilters} aria-label="Filter receipts" className="grid gap-3 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2">
+      <label className="text-sm">Merchant
+        <input className="mt-1 block w-full rounded border p-2" type="search" maxLength={200} value={draft.merchant}
+          onChange={(event) => setDraft({ ...draft, merchant: event.target.value })} /></label>
+      <label className="text-sm">Category
+        <input className="mt-1 block w-full rounded border p-2" type="search" maxLength={200} value={draft.category}
+          onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
+      <label className="text-sm">Date from
+        <input className="mt-1 block w-full rounded border p-2" type="date" value={draft.dateFrom}
+          onChange={(event) => setDraft({ ...draft, dateFrom: event.target.value })} /></label>
+      <label className="text-sm">Date to
+        <input className="mt-1 block w-full rounded border p-2" type="date" value={draft.dateTo}
+          onChange={(event) => setDraft({ ...draft, dateTo: event.target.value })} /></label>
+      <label className="text-sm">Sort by
+        <select className="mt-1 block w-full rounded border p-2" value={draft.sort}
+          onChange={(event) => setDraft({ ...draft, sort: event.target.value as ReceiptSort })}>
+          <option value="date_desc">Newest date</option><option value="date_asc">Oldest date</option>
+          <option value="merchant_asc">Merchant A–Z</option><option value="merchant_desc">Merchant Z–A</option>
+          <option value="total_asc">Lowest total</option><option value="total_desc">Highest total</option>
+        </select></label>
+      <div className="flex items-end gap-3"><button type="submit" className="rounded bg-emerald-800 px-4 py-2 text-white">Apply filters</button>
+        <button type="button" className="underline" onClick={clearFilters}>Clear filters</button></div>
+      {filterError && <p role="alert" className="text-red-700 sm:col-span-2">{filterError}</p>}
+    </form>
     {loading ? <p role="status">Loading receipts…</p> : error ?
       <div role="alert" className="rounded border border-red-200 bg-red-50 p-4">
         <p>{error}</p><button className="mt-2 underline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Retry</button>
       </div> : receipts.length === 0 ?
-      <div className="rounded border border-dashed border-stone-300 bg-white p-8 text-center">
-        <h2 className="text-xl font-medium">No receipts yet</h2>
-        <p className="mt-2 text-stone-600">Upload your first receipt to keep its details together.</p>
+      <div aria-live="polite" className="rounded border border-dashed border-stone-300 bg-white p-8 text-center">
+        <h2 className="text-xl font-medium">{hasFilters ? "No receipts match these filters" : "No receipts yet"}</h2>
+        <p className="mt-2 text-stone-600">{hasFilters ? "Try changing or clearing the filters." :
+          "Upload your first receipt to keep its details together."}</p>
       </div> : <>
-        <p className="text-sm text-stone-600">{receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}</p>
+        <p aria-live="polite" className="text-sm text-stone-600">{receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}</p>
         <ul className="space-y-3" aria-label="Receipts">
           {receipts.map((receipt) => <li key={receipt.receiptId}>
             <Link to={`/receipts/${receipt.receiptId}`} className="flex flex-wrap items-center justify-between gap-3 rounded border border-stone-200 bg-white p-4 hover:border-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-700">

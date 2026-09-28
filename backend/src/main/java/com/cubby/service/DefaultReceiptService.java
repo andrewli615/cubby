@@ -13,6 +13,8 @@ import com.cubby.repository.ReceiptWriteConflictException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -84,8 +86,36 @@ public final class DefaultReceiptService implements ReceiptService {
 
     @Override
     public List<Receipt> list(String userId) {
+        return list(userId, ReceiptListQuery.DEFAULT);
+    }
+
+    @Override
+    public List<Receipt> list(String userId, ReceiptListQuery query) {
         ReceiptValidation.text(userId, "userId");
-        return repository.listByUser(userId).stream().map(receipt -> owned(userId, receipt)).toList();
+        ReceiptValidation.required(query, "query");
+        // The repository's single-user Query already follows every DynamoDB page.
+        // Stream.sorted is stable, retaining that order when selected values compare equal.
+        return repository.listByUser(userId).stream()
+                .map(receipt -> owned(userId, receipt))
+                .filter(receipt -> query.merchant() == null || receipt.merchant().toLowerCase(Locale.ROOT)
+                        .contains(query.merchant().toLowerCase(Locale.ROOT)))
+                .filter(receipt -> query.category() == null || receipt.category() != null
+                        && receipt.category().equalsIgnoreCase(query.category()))
+                .filter(receipt -> query.dateFrom() == null || !receipt.purchaseDate().isBefore(query.dateFrom()))
+                .filter(receipt -> query.dateTo() == null || !receipt.purchaseDate().isAfter(query.dateTo()))
+                .sorted(order(query.sort()))
+                .toList();
+    }
+
+    private static Comparator<Receipt> order(ReceiptListQuery.Sort sort) {
+        return switch (sort) {
+            case DATE_DESC -> Comparator.comparing(Receipt::purchaseDate).reversed();
+            case DATE_ASC -> Comparator.comparing(Receipt::purchaseDate);
+            case MERCHANT_ASC -> Comparator.comparing(Receipt::merchant, String.CASE_INSENSITIVE_ORDER);
+            case MERCHANT_DESC -> Comparator.comparing(Receipt::merchant, String.CASE_INSENSITIVE_ORDER).reversed();
+            case TOTAL_ASC -> Comparator.comparing(Receipt::total);
+            case TOTAL_DESC -> Comparator.comparing(Receipt::total).reversed();
+        };
     }
 
     @Override

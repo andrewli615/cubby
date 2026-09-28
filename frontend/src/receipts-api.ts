@@ -31,6 +31,50 @@ export interface ReceiptFields {
   category: string | null;
 }
 
+export type ReceiptSort = "date_desc" | "date_asc" | "merchant_asc" | "merchant_desc" | "total_asc" | "total_desc";
+
+export interface ReceiptListFilters {
+  merchant?: string;
+  category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sort?: ReceiptSort;
+}
+
+function listPath(filters: ReceiptListFilters): string {
+  const params = new URLSearchParams();
+  for (const field of ["merchant", "category"] as const) {
+    const raw = filters[field];
+    const value = raw?.trim();
+    if (raw && Array.from(raw).some((char) =>
+      char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) throw new ReceiptApiError(`Invalid ${field} filter.`);
+    if (value) {
+      if (value.length > 200) throw new ReceiptApiError(`Invalid ${field} filter.`);
+      params.set(field, value);
+    }
+  }
+  for (const field of ["dateFrom", "dateTo"] as const) {
+    const value = filters[field]?.trim();
+    if (value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)) ||
+          new Date(value).toISOString().slice(0, 10) !== value) throw new ReceiptApiError(`Invalid ${field} filter.`);
+      params.set(field, value);
+    }
+  }
+  const from = params.get("dateFrom");
+  const to = params.get("dateTo");
+  if (from && to && from > to) {
+    throw new ReceiptApiError("The start date must not be after the end date.");
+  }
+  if (filters.sort) {
+    if (!["date_desc", "date_asc", "merchant_asc", "merchant_desc", "total_asc", "total_desc"].includes(filters.sort)) {
+      throw new ReceiptApiError("Invalid receipt sort.");
+    }
+    params.set("sort", filters.sort);
+  }
+  return `/receipts${params.size ? `?${params.toString()}` : ""}`;
+}
+
 interface UploadAuthorization {
   uploadUrl: string;
   imageKey: string;
@@ -87,7 +131,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const receiptApi = {
-  list: () => apiRequest<Receipt[]>("/receipts"),
+  list: async (filters: ReceiptListFilters = {}) => apiRequest<Receipt[]>(listPath(filters)),
   get: (receiptId: string) => apiRequest<Receipt>(`/receipts/${encodeURIComponent(receiptId)}`),
   create: (fields: ReceiptFields, imageKey: string) =>
     apiRequest<Receipt>("/receipts", { method: "POST", body: JSON.stringify({ ...fields, imageKey }) }),

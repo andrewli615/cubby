@@ -16,6 +16,14 @@ Phase 4 implements a local, dependency-injected HTTP API payload v2 adapter in `
 
 Receipt IDs must be canonical UUIDs. Unknown paths return 404; unsupported methods on known routes return 405 with an Allow header. PATCH and OCR routes are not implemented; OCR runs asynchronously through stream and SNS events.
 
+## Receipt list filters (Phase 10)
+
+`GET /receipts` accepts optional query parameters `merchant`, `category`, `dateFrom`, `dateTo`, and `sort`. Merchant is a case-insensitive substring match; category is a case-insensitive exact match. Leading and trailing spaces in these text filters are ignored, and blank values mean no filter. Dates are ISO `YYYY-MM-DD` and both boundaries are inclusive; either boundary can be used alone. An end date before the start date is invalid.
+
+The default sort is `date_desc` (newest purchase date first). Other values are `date_asc`, `merchant_asc`, `merchant_desc`, `total_asc`, and `total_desc`. Equal sort values retain their original user-partition query order. Unknown or repeated parameters, invalid dates, unsupported sort values, and text filters over 200 characters return `400 INVALID_REQUEST`. A valid filter with no matches returns `200 []`. The authenticated subject always selects the user partition; a `userId` query parameter is rejected.
+
+Example: `GET /receipts?merchant=Corner+Shop&category=Office&dateFrom=2026-09-01&dateTo=2026-09-30&sort=total_desc`.
+
 ## Requests and identity
 
 The adapter reads `version: "2.0"`, `rawPath`, and `requestContext.http.method`. The body is a JSON string, optionally base64 encoded when `isBase64Encoded` is true. JSON parsing rejects duplicate fields, unknown fields, trailing content, invalid values and scalar type coercion.

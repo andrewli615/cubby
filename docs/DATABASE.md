@@ -12,4 +12,8 @@ Every operation requires the authenticated user ID. Keys are `PK = USER#{userId}
 
 Totals are stored as DynamoDB numbers and parsed directly as BigDecimal, without floating-point conversion. Dates, timestamps, UUIDs and statuses use their standard string representations. An absent category or explicit DynamoDB NULL maps to a null category.
 
-Unit tests use a mocked DynamoDbClient, including pagination, missing records, conditional failures and user isolation. They do not contact AWS. This phase creates no table, bucket or other cloud resource. Receipt image storage and API wiring remain later phases.
+Unit tests use a mocked DynamoDbClient, including pagination, missing records, conditional failures and user isolation. They do not contact AWS. The original Phase 3 repository milestone created no cloud resources; image storage and API wiring were added in later milestones.
+
+## Phase 10 list filtering
+
+Receipt listing still uses only `Query` with `PK = USER#{authenticatedUserId}` and the `RECEIPT#` sort-key prefix, following every DynamoDB continuation key. The service applies merchant, category and inclusive purchase-date filters to that owner's results, then performs a stable sort. No table scan, new index, DynamoDB filter expression, or API pagination was added. This is suitable for the current personal receipt list; a larger data set or measured query-cost need would require a separately reviewed access pattern. DynamoDB filter expressions do not reduce the read capacity consumed by a Query, so adding one here would not improve that cost.
