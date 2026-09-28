@@ -36,7 +36,7 @@ The infrastructure consumes the actual Java package and fails if it is missing. 
 
 ```powershell
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm lint
 pnpm test
 pnpm build
