@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–7 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, and Cognito authentication in `5c74f3c` passed acceptance review; issues #14–#16 are closed. Phase 7 adds local-only Cognito definitions, JWT authorization, and web sign-in; deployment remains separate. Phase 8 requires a new request. Inspect the working tree before editing and preserve existing work.
+Phases 1–8 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, and receipt CRUD frontend in `3a1474c` passed local acceptance review; issues #14–#17 are closed. Deployment and browser/CORS rollout remain separate. Phase 9 requires a new request. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ Phases 1–7 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, pr
 | 5. AWS core infrastructure — complete, issue #14 closed | CDK definitions for DynamoDB, Lambda, HTTP API, logging, and scoped IAM | TypeScript lint/build and `cdk synth`; stop before `cdk deploy`. |
 | 6. S3 uploads — complete, issue #15 closed | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
 | 7. Cognito — complete, issue #16 closed (`5c74f3c`) | User pool, client, JWT authorizer, and frontend auth code | Backend, frontend and CDK tests plus local synth passed; no identity resources created. |
-| 8. Frontend CRUD | Dashboard, receipt list/detail, upload, edit, and delete flows | Frontend lint/test/build against local mocks. |
+| 8. Frontend CRUD — complete, issue #17 closed (`3a1474c`) | Dashboard, receipt list/detail, upload, create, edit, and delete flows | Frozen install, frontend lint, 17 mocked tests, and build passed; no AWS calls or deployment. |
 | 9. Textract | Asynchronous OCR handler, status transitions, and metadata updates | Mocked service tests and synth only; do not invoke Textract. |
 | 10. Search and filtering | Merchant/category/date filters and sorting | Frontend and backend tests; defer indexes until justified. |
 | 11. CI/CD | GitHub Actions validation; OIDC design for later deployment | Workflow validation only; do not create IAM roles or enable deployment. |
