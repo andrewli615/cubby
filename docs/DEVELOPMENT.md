@@ -1,6 +1,6 @@
 # Development
 
-## Phase 1 checks
+## Local checks
 
 - Backend: `cd backend; .\gradlew.bat test build`
 - Frontend: `cd frontend; pnpm install; pnpm lint; pnpm test; pnpm build`

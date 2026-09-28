@@ -1,8 +1,8 @@
 # Cubby
 
-Cubby is a receipt management web application. The planned system uses a React and TypeScript frontend with a Java 21 AWS Lambda backend, Amazon API Gateway, DynamoDB, private S3 storage, Cognito authentication, and asynchronous Textract processing. Infrastructure is managed with AWS CDK.
+Cubby is a receipt management web application built with React and TypeScript, a Java 21 backend, and AWS CDK-managed serverless infrastructure. The target architecture uses API Gateway, DynamoDB, private S3 storage, Cognito authentication, and asynchronous Textract processing.
 
-This repository is being built in phases. **Phase 1 is the bootstrap only**: it provides a minimal React app, a tested Java Lambda health handler, and an empty CDK stack. It does not create AWS resources or implement receipt workflows.
+The repository is being built in phases. The current implementation includes the React starter, Java Lambda health and receipt API handlers, receipt domain and DynamoDB repository layers, and an infrastructure scaffold. Authentication, uploads, OCR, and production infrastructure remain future milestones.
 
 ## Repository layout
 
@@ -55,4 +55,4 @@ pnpm synth
 
 Copy `.env.example` to `.env.local` when configuring a local API URL. Do not put AWS credentials, tokens, or other secrets in frontend environment variables; Vite exposes `VITE_*` values to browser code.
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the Phase 1 workflow and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target architecture.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local checks, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target architecture, and [docs/AWS_MILESTONES.md](docs/AWS_MILESTONES.md) for implementation progress.

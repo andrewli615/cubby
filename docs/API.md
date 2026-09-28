@@ -59,4 +59,4 @@ Errors have the form:
 
 Deleting a missing receipt returns 404. Concurrent metadata writes retain the repository's documented last-write-wins behavior; this phase adds no version-locking contract.
 
-Handler tests use mocked services and identity providers. Service tests use a mocked repository and fixed clock/UUIDs. Local integration tests exercise the real handler and service with an in-memory mocked repository. Run `cd backend; .\gradlew.bat clean test build`. No AWS calls, deployed API, resources or billing changes are required.
+Handler tests use mocked services and identity providers. Service tests use a mocked repository and fixed clock/UUIDs. Local integration tests exercise the real handler and service with an in-memory mocked repository. Run `cd backend; .\gradlew.bat clean test build`. Tests do not require live AWS services or a deployed API.
