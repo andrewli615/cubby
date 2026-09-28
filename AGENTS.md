@@ -2,9 +2,10 @@
 
 ## Current scope
 
-- Follow the phased implementation plan in the project brief and `docs/AWS_MILESTONES.md`. Phase 1 bootstrap is complete; Phase 2 (Domain Layer) is the next application milestone. Check the current working tree before editing because a phase may already be in progress.
+- Follow the current web/serverless plan in `docs/AWS_MILESTONES.md` and the open GitHub issues. Phase 1 (repository bootstrap) and Phase 2 (receipt domain layer) are complete. Start with GitHub issue #12 (DynamoDB receipt repository), then take one issue at a time in order through #20. Check the current working tree before editing because a phase may already be in progress. The old GitHub issues #1-#11 describe the retired iOS/local Spring/PostgreSQL direction and are closed; do not reopen or implement them.
 - The product is a web application. Use React, TypeScript, Vite, Tailwind CSS, and React Router for the frontend; Java 21, Gradle, AWS Lambda, and AWS SDK for Java 2.x for the backend; and AWS CDK with strict TypeScript for infrastructure.
 - Do not add Spring Boot, PostgreSQL, Docker services, or production AWS resources. Do not deploy unless the user explicitly asks.
+- Treat the current React/TypeScript web application and Java 21 Lambda architecture as authoritative. Do not restore the earlier iOS-first architecture; the retained `ios/` prototype is historical and out of the current build scope unless the user changes the plan.
 - Keep Lambda handlers thin. Add business logic to services and persistence logic to repositories as later phases introduce them.
 
 ## Safety and quality
