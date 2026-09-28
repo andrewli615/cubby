@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–9 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, receipt CRUD frontend in `3a1474c`, and asynchronous OCR in `05b204a` passed local acceptance review; issues #14–#18 are closed. Deployment and browser/CORS rollout remain separate. Phase 10 requires a new request. Inspect the working tree before editing and preserve existing work.
+Phases 1–10 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, receipt CRUD frontend in `3a1474c`, asynchronous OCR in `05b204a`, and receipt filtering and sorting in `a0c33b7` passed local acceptance review; issues #14–#19 are closed. Deployment and browser/CORS rollout remain separate. Phase 11 requires a new request. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ Phases 1–9 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, pr
 | 7. Cognito — complete, issue #16 closed (`5c74f3c`) | User pool, client, JWT authorizer, and frontend auth code | Backend, frontend and CDK tests plus local synth passed; no identity resources created. |
 | 8. Frontend CRUD — complete, issue #17 closed (`3a1474c`) | Dashboard, receipt list/detail, upload, create, edit, and delete flows | Frozen install, frontend lint, 17 mocked tests, and build passed; no AWS calls or deployment. |
 | 9. Textract — complete, issue #18 closed (`05b204a`) | Asynchronous OCR handler, status transitions, and metadata updates | Mocked service tests, backend/frontend checks, and local synth passed; no live Textract invocation. |
-| 10. Search and filtering | Merchant/category/date filters and sorting | Frontend and backend tests; defer indexes until justified. |
+| 10. Search and filtering — complete, issue #19 closed (`a0c33b7`) | Authenticated-user merchant/category/inclusive date filters and stable sorting | Backend clean test/build (241 tests) and frontend lint/test/build (22 tests) passed; no new index or AWS calls. |
 | 11. CI/CD | GitHub Actions validation; OIDC design for later deployment | Workflow validation only; do not create IAM roles or enable deployment. |
 
 The project brief remains authoritative for each phase's exact behavior. Keep infrastructure deployment separate from implementation issues.
