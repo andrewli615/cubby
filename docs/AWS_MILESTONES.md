@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–4 are complete on GitHub `main`. Phase 4 implementation in `bf9a2de` passed acceptance review and a clean backend build with 144 tests; issue #13 is closed as completed. Phase 5 / issue #14 adds locally validated core CDK definitions. Deployment remains separate, and later issues require their own requested milestone. Inspect the working tree before editing and preserve existing work.
+Phases 1–5 are complete on GitHub `main`. Core infrastructure in `92a4b0e` passed acceptance review; issue #14 is closed. Issue #15 (Phase 6: private S3 receipt uploads) is next. Deployment remains separate. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ Phases 1–4 are complete on GitHub `main`. Phase 4 implementation in `bf9a2de` 
 | 2. Domain layer — complete | Immutable `Receipt`, `ReceiptStatus`, DTOs, validation, `ReceiptService` skeleton | JUnit unit tests and backend build; no AWS calls. |
 | 3. DynamoDB repository — complete | Repository operations for save, find, user query, update, and delete | Mocked AWS SDK tests; no AWS calls or deployed table. |
 | 4. Basic REST API — complete | Health and receipt CRUD handlers; identity abstraction pending Cognito | Handler/service tests using local fixtures; no deployed API. |
-| 5. AWS core infrastructure — defined locally, issue #14 | CDK definitions for DynamoDB, Lambda, HTTP API, logging, and scoped IAM | TypeScript lint/build and `cdk synth`; stop before `cdk deploy`. |
+| 5. AWS core infrastructure — complete, issue #14 closed | CDK definitions for DynamoDB, Lambda, HTTP API, logging, and scoped IAM | TypeScript lint/build and `cdk synth`; stop before `cdk deploy`. |
 | 6. S3 uploads | Private bucket and presigned upload flow in code/CDK | Unit tests and synth only; do not create the bucket or upload objects. |
 | 7. Cognito | User pool, client, JWT authorizer, and frontend auth code | Unit tests and synth only; do not create AWS identity resources. |
 | 8. Frontend CRUD | Dashboard, receipt list/detail, upload, edit, and delete flows | Frontend lint/test/build against local mocks. |
