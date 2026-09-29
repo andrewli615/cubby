@@ -8,10 +8,15 @@ import com.cubby.dto.CreateReceiptRequest;
 import com.cubby.dto.UpdateReceiptRequest;
 import com.cubby.dto.UploadUrlRequest;
 import com.cubby.dto.UploadUrlResponse;
+import com.cubby.dto.SpendingSummary;
 import com.cubby.repository.ReceiptRepository;
 import com.cubby.repository.ReceiptWriteConflictException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.List;
 import java.util.Comparator;
 import java.util.Locale;
@@ -105,6 +110,47 @@ public final class DefaultReceiptService implements ReceiptService {
                 .filter(receipt -> query.dateTo() == null || !receipt.purchaseDate().isAfter(query.dateTo()))
                 .sorted(order(query.sort()))
                 .toList();
+    }
+
+    @Override
+    public SpendingSummary spending(String userId, LocalDate dateFrom, LocalDate dateTo) {
+        ReceiptValidation.text(userId, "userId");
+        if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+            throw new IllegalArgumentException("dateFrom must not exceed dateTo");
+        }
+        // The existing user-partition query follows all DynamoDB pages; aggregation is local to this user.
+        Map<String, Map<String, Map<String, BigDecimal>>> totals = new TreeMap<>();
+        for (Receipt receipt : repository.listByUser(userId)) {
+            owned(userId, receipt);
+            if ((dateFrom != null && receipt.purchaseDate().isBefore(dateFrom)) ||
+                    (dateTo != null && receipt.purchaseDate().isAfter(dateTo))) continue;
+            String category = receipt.category() == null ? "Uncategorized" : receipt.category();
+            totals.computeIfAbsent(receipt.currency(), ignored -> new TreeMap<>())
+                    .computeIfAbsent(category, ignored -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER))
+                    .merge(receipt.merchant(), receipt.total(), BigDecimal::add);
+        }
+        List<SpendingSummary.CurrencyFlow> currencies = new java.util.ArrayList<>();
+        for (var currency : totals.entrySet()) {
+            BigDecimal total = BigDecimal.ZERO;
+            List<SpendingSummary.Node> nodes = new java.util.ArrayList<>();
+            List<SpendingSummary.Link> links = new java.util.ArrayList<>();
+            nodes.add(new SpendingSummary.Node("spending", "Company spending"));
+            for (var category : currency.getValue().entrySet()) {
+                String categoryId = "category:" + category.getKey();
+                nodes.add(new SpendingSummary.Node(categoryId, category.getKey()));
+                BigDecimal categoryTotal = category.getValue().values().stream()
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                total = total.add(categoryTotal);
+                links.add(new SpendingSummary.Link("spending", categoryId, categoryTotal));
+                for (var merchant : category.getValue().entrySet()) {
+                    String merchantId = "merchant:" + category.getKey() + ":" + merchant.getKey();
+                    nodes.add(new SpendingSummary.Node(merchantId, merchant.getKey()));
+                    links.add(new SpendingSummary.Link(categoryId, merchantId, merchant.getValue()));
+                }
+            }
+            currencies.add(new SpendingSummary.CurrencyFlow(currency.getKey(), total, nodes, links));
+        }
+        return new SpendingSummary(currencies);
     }
 
     private static Comparator<Receipt> order(ReceiptListQuery.Sort sort) {

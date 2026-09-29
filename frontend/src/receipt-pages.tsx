@@ -1,7 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { receiptApi, validateUpload, type Receipt, type ReceiptFields,
-  type ReceiptListFilters, type ReceiptSort } from "./receipts-api";
+  type ReceiptListFilters, type ReceiptSort, type SpendingCurrencyFlow } from "./receipts-api";
+
+const ResponsiveSankey = lazy(async () => {
+  const module = await import("@nivo/sankey");
+  return { default: module.ResponsiveSankey };
+});
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong. Try again.";
@@ -31,6 +36,11 @@ function Dashboard() {
     sort: "date_desc" as ReceiptSort });
   const [applied, setApplied] = useState<ReceiptListFilters>({});
   const [filterError, setFilterError] = useState("");
+  const [spending, setSpending] = useState<SpendingCurrencyFlow[]>([]);
+  const [spendingLoading, setSpendingLoading] = useState(true);
+  const [spendingError, setSpendingError] = useState("");
+  const [spendingReload, setSpendingReload] = useState(0);
+  const [currency, setCurrency] = useState("");
   const hasFilters = Boolean(applied.merchant || applied.category || applied.dateFrom || applied.dateTo);
 
   useEffect(() => {
@@ -42,6 +52,21 @@ function Dashboard() {
     });
     return () => { active = false; };
   }, [applied, reload]);
+
+  useEffect(() => {
+    let active = true;
+    setSpendingLoading(true);
+    void receiptApi.spending({ dateFrom: applied.dateFrom, dateTo: applied.dateTo }).then((result) => {
+      if (active) { setSpending(result.currencies); setSpendingError(""); setSpendingLoading(false); }
+    }).catch((failure: unknown) => {
+      if (active) { setSpendingError(errorMessage(failure)); setSpendingLoading(false); }
+    });
+    return () => { active = false; };
+  }, [applied.dateFrom, applied.dateTo, spendingReload]);
+
+  useEffect(() => {
+    setCurrency(spending.length === 1 ? spending[0]!.currency : "");
+  }, [spending]);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,12 +90,63 @@ function Dashboard() {
   return <section className="space-y-6">
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div><p className="text-sm font-semibold uppercase tracking-widest text-emerald-800">Dashboard</p>
-        <h1 className="mt-2 text-3xl font-semibold">Your receipts</h1></div>
-      <Link className="rounded bg-emerald-800 px-4 py-2 font-medium text-white" to="/receipts/new">Add receipt</Link>
+        <h1 className="mt-2 text-3xl font-semibold">Company expenses</h1></div>
+      <Link className="rounded bg-emerald-800 px-4 py-2 font-medium text-white" to="/receipts/new">Add expense document</Link>
     </div>
+    <section aria-labelledby="spending-title" className="space-y-4 rounded border border-stone-200 bg-white p-4 sm:p-6">
+      <div><p className="text-sm font-semibold uppercase tracking-widest text-emerald-800">Analytics</p>
+        <h2 id="spending-title" className="mt-1 text-2xl font-semibold">Spending flow</h2>
+        <p className="mt-1 text-sm text-stone-600">Company spending flows through category to merchant. Each currency is shown separately.</p></div>
+      {spendingLoading ? <p role="status">Loading spending summary…</p> : spendingError ?
+        <div role="alert"><p>{spendingError}</p><button className="mt-2 underline" onClick={() => {
+          setSpendingLoading(true); setSpendingReload((value) => value + 1);
+        }}>Retry spending summary</button></div> : spending.length === 0 ?
+          <p className="rounded border border-dashed p-6 text-center">No expense data yet. Add a receipt or invoice to see spending.</p> : <>
+            {spending.length > 1 && <label className="block max-w-xs text-sm">Currency
+              <select className="mt-1 block w-full rounded border p-2" value={currency}
+                onChange={(event) => setCurrency(event.target.value)}>
+                <option value="">Choose a currency</option>
+                {spending.map((entry) => <option key={entry.currency} value={entry.currency}>{entry.currency}</option>)}
+              </select></label>}
+            {!currency ? <p role="status">Choose a currency to view its spending flow.</p> : (() => {
+              const selected = spending.find((entry) => entry.currency === currency);
+              if (!selected) return null;
+              return <>
+                <p className="font-semibold">Total {currency}: {new Intl.NumberFormat(undefined, {
+                  style: "currency", currency, currencyDisplay: "code",
+                }).format(selected.total)}</p>
+                <div className="h-[420px]" role="img" aria-label={`Sankey diagram of ${currency} company spending by category and merchant`}>
+                  <Suspense fallback={<p role="status">Loading chart…</p>}>
+                    <ResponsiveSankey data={{ nodes: selected.nodes, links: selected.links }}
+                      margin={{ top: 16, right: 130, bottom: 16, left: 130 }}
+                      align="justify" colors={{ scheme: "category10" }} nodeOpacity={1} nodeHoverOpacity={1}
+                      nodeThickness={18} nodeSpacing={24} nodeBorderWidth={0} linkOpacity={0.35}
+                      linkHoverOpacity={0.65} enableLinkGradient labelPosition="outside" labelOrientation="horizontal"
+                      labelPadding={12} labelTextColor={{ from: "color", modifiers: [["darker", 1.3]] }}
+                      valueFormat={(value) => new Intl.NumberFormat(undefined, { style: "currency", currency,
+                        currencyDisplay: "code" }).format(value)} />
+                  </Suspense>
+                </div>
+                <table className="w-full border-collapse text-left text-sm" aria-label="Spending flow summary">
+                  <caption className="pb-2 text-left font-semibold">Amounts represented in the chart</caption>
+                  <thead><tr className="border-b"><th scope="col" className="p-2">From</th>
+                    <th scope="col" className="p-2">To</th><th scope="col" className="p-2 text-right">Amount</th></tr></thead>
+                  <tbody>{selected.links.map((link) => {
+                    const labels = new Map(selected.nodes.map((node) => [node.id, node.label]));
+                    return <tr key={`${link.source}-${link.target}`} className="border-b">
+                      <td className="p-2">{labels.get(link.source)}</td><td className="p-2">{labels.get(link.target)}</td>
+                      <td className="p-2 text-right">{new Intl.NumberFormat(undefined, { style: "currency", currency,
+                        currencyDisplay: "code" }).format(link.value)}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </>;
+            })()}
+          </>}
+    </section>
     {new URLSearchParams(location.search).has("deleted") &&
       <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Receipt deleted.</p>}
-    <form onSubmit={applyFilters} aria-label="Filter receipts" className="grid gap-3 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2">
+    <form onSubmit={applyFilters} aria-label="Filter expenses" className="grid gap-3 rounded border border-stone-200 bg-white p-4 sm:grid-cols-2">
       <label className="text-sm">Merchant
         <input className="mt-1 block w-full rounded border p-2" type="search" maxLength={200} value={draft.merchant}
           onChange={(event) => setDraft({ ...draft, merchant: event.target.value })} /></label>
@@ -99,12 +175,12 @@ function Dashboard() {
         <p>{error}</p><button className="mt-2 underline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Retry</button>
       </div> : receipts.length === 0 ?
       <div aria-live="polite" className="rounded border border-dashed border-stone-300 bg-white p-8 text-center">
-        <h2 className="text-xl font-medium">{hasFilters ? "No receipts match these filters" : "No receipts yet"}</h2>
+        <h2 className="text-xl font-medium">{hasFilters ? "No expense documents match these filters" : "No expenses yet"}</h2>
         <p className="mt-2 text-stone-600">{hasFilters ? "Try changing or clearing the filters." :
-          "Upload your first receipt to keep its details together."}</p>
+          "Upload a receipt or invoice to record your first expense."}</p>
       </div> : <>
-        <p aria-live="polite" className="text-sm text-stone-600">{receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}</p>
-        <ul className="space-y-3" aria-label="Receipts">
+        <p aria-live="polite" className="text-sm text-stone-600">{receipts.length} {receipts.length === 1 ? "expense" : "expenses"}</p>
+        <ul className="space-y-3" aria-label="Expenses">
           {receipts.map((receipt) => <li key={receipt.receiptId}>
             <Link to={`/receipts/${receipt.receiptId}`} className="flex flex-wrap items-center justify-between gap-3 rounded border border-stone-200 bg-white p-4 hover:border-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-700">
               <span><span className="block font-semibold">{receipt.merchant}</span>
@@ -186,13 +262,13 @@ function ReceiptForm({ receipt, saving, progress, error, onSave, onFileChange }:
       <input type="file" accept="image/jpeg,image/png,application/pdf"
         onChange={(event) => { setFile(event.target.files?.[0]); setValidation(""); onFileChange?.(); }}
         className="mt-1 block w-full rounded border bg-white p-2" />
-      <span className="mt-1 block text-sm font-normal text-stone-600">JPEG, PNG, or PDF; 10 MB maximum.</span>
+      <span className="mt-1 block text-sm font-normal text-stone-600">Upload the original invoice or receipt (JPEG, PNG, or PDF; 10 MB maximum).</span>
     </label>}
     {validation && <p role="alert" className="text-red-700">{validation}</p>}
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {progress && <p role="status">{progress}</p>}
     <div className="flex gap-3"><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50">
-      {receipt ? "Save changes" : "Create receipt"}</button>
+      {receipt ? "Save changes" : "Create expense"}</button>
       <Link to={receipt ? `/receipts/${receipt.receiptId}` : "/"} className="rounded border px-4 py-2">Cancel</Link></div>
   </form>;
 }
@@ -215,7 +291,7 @@ function CreateReceipt() {
         key = await receiptApi.upload(file);
         setImageKey(key);
       }
-      setProgress("Saving receipt…");
+      setProgress("Saving expense…");
       const created = await receiptApi.create(fields, key);
       navigate(`/receipts/${created.receiptId}?created=1`, { replace: true });
     } catch (failure) {
@@ -226,8 +302,8 @@ function CreateReceipt() {
     }
   }
 
-  return <section className="space-y-6"><Link className="text-emerald-800 underline" to="/">← All receipts</Link>
-    <h1 className="text-3xl font-semibold">Add receipt</h1>
+  return <section className="space-y-6"><Link className="text-emerald-800 underline" to="/">← Company expenses</Link>
+    <h1 className="text-3xl font-semibold">Add expense</h1>
     <ReceiptForm saving={saving} progress={progress} error={error} onSave={save}
       onFileChange={() => setImageKey(null)} /></section>;
 }
@@ -267,14 +343,14 @@ function Detail() {
     }
   }
 
-  return <section className="space-y-6"><Link className="text-emerald-800 underline" to="/">← All receipts</Link>
+  return <section className="space-y-6"><Link className="text-emerald-800 underline" to="/">← Company expenses</Link>
     {loading ? <p role="status">Loading receipt…</p> : !receipt ?
-      <div role="alert"><p>{error || "Receipt not found."}</p>
+      <div role="alert"><p>{error || "Expense not found."}</p>
         <button className="mt-2 underline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Retry</button></div> : <>
         {new URLSearchParams(location.search).has("created") &&
-          <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Receipt created.</p>}
+          <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Expense created.</p>}
         {new URLSearchParams(location.search).has("updated") &&
-          <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Receipt updated.</p>}
+          <p role="status" className="rounded bg-emerald-50 p-3 text-emerald-900">Expense updated.</p>}
         <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">{receipt.merchant}</h1>
           <p className="mt-2 text-stone-600">{receipt.purchaseDate}</p></div><Status status={receipt.status} /></div>
         {receipt.status === "REVIEW_NEEDED" && <p role="status" className="rounded bg-amber-50 p-3 text-amber-900">
@@ -295,7 +371,7 @@ function Detail() {
         <div className="flex gap-3"><Link className="rounded bg-emerald-800 px-4 py-2 text-white" to={`/receipts/${receipt.receiptId}/edit`}>Edit</Link>
           <button className="rounded border border-red-700 px-4 py-2 text-red-800" onClick={() => setConfirming(true)}>Delete</button></div>
         {confirming && <div className="rounded border border-red-200 bg-red-50 p-4">
-          <p>Delete this receipt record? Its original file remains privately stored.</p>
+          <p>Delete this expense record? Its original invoice or receipt remains privately stored.</p>
           <div className="mt-3 flex gap-3"><button disabled={deleting} className="rounded bg-red-800 px-4 py-2 text-white disabled:opacity-50"
             onClick={() => void remove()}>Confirm delete</button>
             <button className="rounded border px-4 py-2" onClick={() => setConfirming(false)}>Cancel</button></div>
@@ -339,7 +415,7 @@ function EditReceipt() {
   }
 
   return <section className="space-y-6"><Link className="text-emerald-800 underline" to={`/receipts/${receiptId}`}>← Receipt detail</Link>
-    <h1 className="text-3xl font-semibold">Edit receipt</h1>
+    <h1 className="text-3xl font-semibold">Edit expense</h1>
     {loading ? <p role="status">Loading receipt…</p> : receipt ?
       <ReceiptForm receipt={receipt} saving={saving} progress="" error={error} onSave={save} /> :
       <p role="alert">{error || "Receipt not found."}</p>}

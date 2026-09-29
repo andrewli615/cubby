@@ -214,7 +214,7 @@ export class CubbyStack extends cdk.Stack {
         jwtAudience: [webClient.userPoolClientId],
         identitySource: ["$request.header.Authorization"],
       }),
-      description: "Cubby API with Cognito access-token authorization for receipt routes",
+      description: "Cubby expense API with Cognito access-token authorization",
     });
     const integration = new HttpLambdaIntegration("ReceiptIntegration", handler, {
       payloadFormatVersion: apigateway.PayloadFormatVersion.VERSION_2_0,
@@ -227,6 +227,7 @@ export class CubbyStack extends cdk.Stack {
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.GET, public: false },
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.PUT, public: false },
       { path: "/receipts/{receiptId}", method: apigateway.HttpMethod.DELETE, public: false },
+      { path: "/analytics/spending", method: apigateway.HttpMethod.GET, public: false },
     ];
     for (const definition of routes) {
       const [route] = api.addRoutes({

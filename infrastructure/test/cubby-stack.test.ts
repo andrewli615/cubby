@@ -28,10 +28,10 @@ const originalsArn = { "Fn::Join": ["", [{ "Fn::GetAtt": [bucketId, "Arn"] }, "/
 test("only the intended core resources are synthesized", () => {
   const expected: Record<string, number> = {
     "AWS::DynamoDB::Table": 1, "AWS::Logs::LogGroup": 4, "AWS::IAM::Role": 4,
-    "AWS::IAM::Policy": 4, "AWS::Lambda::Function": 3, "AWS::Lambda::Permission": 8,
+    "AWS::IAM::Policy": 4, "AWS::Lambda::Function": 3, "AWS::Lambda::Permission": 9,
     "AWS::Lambda::EventSourceMapping": 1, "AWS::SNS::Topic": 1, "AWS::SNS::Subscription": 1,
     "AWS::ApiGatewayV2::Api": 1, "AWS::ApiGatewayV2::Integration": 1,
-    "AWS::ApiGatewayV2::Route": 7, "AWS::ApiGatewayV2::Stage": 1,
+    "AWS::ApiGatewayV2::Route": 8, "AWS::ApiGatewayV2::Stage": 1,
     "AWS::S3::Bucket": 1, "AWS::S3::BucketPolicy": 1,
     "AWS::Cognito::UserPool": 1, "AWS::Cognito::UserPoolClient": 1,
     "AWS::ApiGatewayV2::Authorizer": 1,
@@ -95,13 +95,13 @@ test("execution role has only receipt table, log-stream and conditional upload o
   });
 });
 
-test("health is the only anonymous route and all six receipt routes require scoped JWT access tokens", () => {
+test("health is the only anonymous route and all seven data routes require scoped JWT access tokens", () => {
   const routes = ofType("AWS::ApiGatewayV2::Route").map(([, value]) => value.Properties);
   assert.deepEqual(routes.filter((route) => route.AuthorizationType === "NONE").map((route) => route.RouteKey),
     ["GET /health"]);
   assert.deepEqual(routes.filter((route) => route.AuthorizationType === "JWT")
     .map((route) => route.RouteKey).sort(),
-  ["DELETE /receipts/{receiptId}", "GET /receipts", "GET /receipts/{receiptId}",
+  ["DELETE /receipts/{receiptId}", "GET /analytics/spending", "GET /receipts", "GET /receipts/{receiptId}",
     "POST /receipts", "POST /receipts/upload-url", "PUT /receipts/{receiptId}"]);
   for (const route of routes.filter((entry) => entry.AuthorizationType === "JWT")) {
     assert.deepEqual(route.AuthorizerId, { Ref: authorizerId });
@@ -158,8 +158,9 @@ test("Lambda invocations are restricted to this account, API, stage, method and 
     suffixes.push(arn["Fn::Join"][1].at(-1) as string);
   }
   assert.deepEqual(suffixes.sort(), [
-    "/$default/DELETE/receipts/*", "/$default/GET/health", "/$default/GET/receipts",
-    "/$default/GET/receipts/*", "/$default/POST/receipts", "/$default/POST/receipts/upload-url", "/$default/PUT/receipts/*",
+    "/$default/DELETE/receipts/*", "/$default/GET/analytics/spending", "/$default/GET/health",
+    "/$default/GET/receipts", "/$default/GET/receipts/*", "/$default/POST/receipts",
+    "/$default/POST/receipts/upload-url", "/$default/PUT/receipts/*",
   ]);
 });
 

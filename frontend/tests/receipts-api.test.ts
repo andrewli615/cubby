@@ -67,6 +67,16 @@ describe("typed receipt API client", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("requests protected spending analytics with only inclusive date filters", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ currencies: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await receiptApi.spending({ dateFrom: "2026-09-01", dateTo: "2026-09-28" });
+    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:3000/analytics/spending?dateFrom=2026-09-01&dateTo=2026-09-28");
+    expect(fetchMock.mock.calls[0]![1].headers.Authorization).toBe("Bearer verified-access-token");
+    await expect(receiptApi.spending({ dateFrom: "2026-09-29", dateTo: "2026-09-28" })).rejects.toThrow("start date");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("uses all browser-settable signed headers and sends no Cognito token to the presigned URL", async () => {
     const file = new File(["receipt bytes"], "receipt.png", { type: "image/png" });
     const authorization = { uploadUrl: "https://private-bucket.example/opaque-signature",

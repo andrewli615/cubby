@@ -10,6 +10,10 @@ import com.cubby.service.ReceiptConflictException;
 import com.cubby.service.ReceiptListQuery;
 import com.cubby.service.ReceiptNotFoundException;
 import com.cubby.service.ReceiptService;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -42,9 +46,10 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
                 return "GET".equals(method) ? health.handleRequest(event, context) : methodNotAllowed("GET");
             }
             boolean upload = "/receipts/upload-url".equals(path);
+            boolean analytics = "/analytics/spending".equals(path);
             boolean collection = "/receipts".equals(path);
             boolean item = path.matches("/receipts/[^/]+");
-            if (!collection && !item && !upload) {
+            if (!collection && !item && !upload && !analytics) {
                 return ApiJson.error(404, "NOT_FOUND", "Route not found");
             }
 
@@ -53,6 +58,20 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
                 return ApiJson.error(401, "UNAUTHORIZED", "Authentication required");
             }
             String userId = user.get();
+            if (analytics) {
+                if (!"GET".equals(method)) return methodNotAllowed("GET");
+                Object raw = event.get("rawQueryString");
+                if (raw == null || "".equals(raw)) {
+                    Object parameters = event.get("queryStringParameters");
+                    if (parameters instanceof Map<?, ?> map && !map.isEmpty()) {
+                        throw new IllegalArgumentException("Raw query string is required");
+                    }
+                    return ApiJson.response(200, service.spending(userId, null, null));
+                }
+                if (!(raw instanceof String query)) throw new IllegalArgumentException("Invalid query string");
+                LocalDate[] range = spendingDates(query);
+                return ApiJson.response(200, service.spending(userId, range[0], range[1]));
+            }
             if (upload) {
                 return "POST".equals(method)
                         ? ApiJson.response(200, service.createUploadUrl(userId, ApiJson.body(event, UploadUrlRequest.class)))
@@ -117,6 +136,37 @@ public final class ReceiptApiHandler implements RequestHandler<Map<String, Objec
             throw new IllegalArgumentException("A canonical UUID is required");
         }
         return id;
+    }
+
+    private static LocalDate[] spendingDates(String raw) {
+        if (raw.length() > 1024) throw new IllegalArgumentException("Query is too long");
+        LocalDate from = null;
+        LocalDate to = null;
+        boolean seenFrom = false;
+        boolean seenTo = false;
+        for (String pair : raw.split("&", -1)) {
+            if (pair.isEmpty()) throw new IllegalArgumentException("Empty query parameter");
+            String[] parts = pair.split("=", 2);
+            String key = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+            String value = URLDecoder.decode(parts.length == 2 ? parts[1] : "", StandardCharsets.UTF_8);
+            if (key.equals("dateFrom") && !seenFrom) {
+                seenFrom = true;
+                from = spendingDate(value);
+            } else if (key.equals("dateTo") && !seenTo) {
+                seenTo = true;
+                to = spendingDate(value);
+            } else {
+                throw new IllegalArgumentException("Unknown or repeated query parameter");
+            }
+        }
+        if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("Invalid date range");
+        return new LocalDate[] { from, to };
+    }
+
+    private static LocalDate spendingDate(String value) {
+        if (!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) throw new IllegalArgumentException("Invalid ISO date");
+        try { return LocalDate.parse(value); }
+        catch (DateTimeParseException invalid) { throw new IllegalArgumentException("Invalid ISO date", invalid); }
     }
 
     private static String text(Object value) {

@@ -41,6 +41,17 @@ export interface ReceiptListFilters {
   sort?: ReceiptSort;
 }
 
+export interface SpendingCurrencyFlow {
+  currency: string;
+  total: number;
+  nodes: Array<{ id: string; label: string }>;
+  links: Array<{ source: string; target: string; value: number }>;
+}
+
+export interface SpendingSummary {
+  currencies: SpendingCurrencyFlow[];
+}
+
 function listPath(filters: ReceiptListFilters): string {
   const params = new URLSearchParams();
   for (const field of ["merchant", "category"] as const) {
@@ -73,6 +84,22 @@ function listPath(filters: ReceiptListFilters): string {
     params.set("sort", filters.sort);
   }
   return `/receipts${params.size ? `?${params.toString()}` : ""}`;
+}
+
+function spendingPath(filters: Pick<ReceiptListFilters, "dateFrom" | "dateTo">): string {
+  const params = new URLSearchParams();
+  for (const field of ["dateFrom", "dateTo"] as const) {
+    const value = filters[field]?.trim();
+    if (value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)) ||
+          new Date(value).toISOString().slice(0, 10) !== value) throw new ReceiptApiError(`Invalid ${field} filter.`);
+      params.set(field, value);
+    }
+  }
+  const from = params.get("dateFrom");
+  const to = params.get("dateTo");
+  if (from && to && from > to) throw new ReceiptApiError("The start date must not be after the end date.");
+  return `/analytics/spending${params.size ? `?${params.toString()}` : ""}`;
 }
 
 interface UploadAuthorization {
@@ -132,6 +159,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const receiptApi = {
   list: async (filters: ReceiptListFilters = {}) => apiRequest<Receipt[]>(listPath(filters)),
+  spending: async (filters: Pick<ReceiptListFilters, "dateFrom" | "dateTo"> = {}) =>
+    apiRequest<SpendingSummary>(spendingPath(filters)),
   get: (receiptId: string) => apiRequest<Receipt>(`/receipts/${encodeURIComponent(receiptId)}`),
   create: (fields: ReceiptFields, imageKey: string) =>
     apiRequest<Receipt>("/receipts", { method: "POST", body: JSON.stringify({ ...fields, imageKey }) }),

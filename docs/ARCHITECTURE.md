@@ -2,13 +2,15 @@
 
 ## Implemented milestones
 
-Phases 1–4 provide the React bootstrap, immutable receipt domain, user-scoped DynamoDB repository, and local REST handler/service layers. Phase 5 defines the core regional infrastructure in strict TypeScript CDK. Phase 6 adds private, create-only S3 upload definitions and local signing. The selected Region is US West (Oregon), `us-west-2`, configured by `cubby:region` in the CDK app. The account remains a CloudFormation token; synthesis requires no account lookup.
+Cubby records company expenses from invoices and receipts. Each source document maps to one expense record with merchant, date, total, currency, category and OCR review status. OCR extraction remains separate from the reviewed fields used by reporting. The portfolio MVP represents a fictional company with one Cognito finance user; DynamoDB data stays partitioned by that verified identity. It does not model payment schedules, approvals or invoice line items.
+
+The React frontend, Java 21 Lambda API, Cognito authentication, private S3 originals, asynchronous Textract processing and user-scoped DynamoDB repository form the current architecture. The selected Region is US West (Oregon), `us-west-2`, configured by `cubby:region` in the CDK app. The account remains a CloudFormation token; synthesis requires no account lookup.
 
 ## Core CDK resources
 
 - One regional DynamoDB table with string `PK` and `SK`, on-demand capacity, DynamoDB-owned encryption, point-in-time recovery, deletion protection and retention on removal/replacement.
 - One Java 21 Lambda using the backend's reproducible ZIP package and `ReceiptLambdaHandler` composition root. Its table and image bucket names are passed through the environment, and the Java SDK uses the Lambda-provided Region.
-- One HTTP API with explicit health, receipt CRUD and upload-URL routes using payload format 2.0; no catch-all route or function URL.
+- One HTTP API with explicit health, receipt CRUD, upload-URL and spending analytics routes using payload format 2.0; no catch-all route or function URL.
 - Separate retained CloudWatch log groups for function and API access logs, with 30-day retention. Access logs contain request ID, route key, status, response length and integration latency, excluding bodies, query strings, headers, source IPs and claims.
 - One Lambda execution role with only GetItem, PutItem, Query and DeleteItem on the receipt table, plus CreateLogStream and PutLogEvents on its own log group and conditional PutObject on this bucket's `*/originals/*` keys. No Scan, account-wide resource access, managed execution policies, table administration, replication or KMS grants.
 - One retained private S3 bucket with SSE-S3 encryption, all public access blocked, ACLs disabled and TLS required. Bucket policies require create-only writes to original keys, deny original deletion and deny upload signatures older than five minutes. The Lambda role has no S3 read, list, delete, ACL, tagging or KMS permissions.
@@ -18,7 +20,7 @@ The stack has termination protection. Phase 9 adds a keys-only receipt stream, t
 
 ## Authorization boundary
 
-Only `GET /health` is public. All receipt routes require Cognito access tokens at API Gateway. `ReceiptLambdaHandler` derives the owner from the verified JWT subject through its identity provider, never from client-supplied receipt data. Receipt operations remain available through explicit dependency injection in local tests.
+Only `GET /health` is public. Receipt and analytics routes require Cognito access tokens at API Gateway. `ReceiptLambdaHandler` derives the owner from the verified JWT subject through its identity provider, never from client-supplied receipt data. The spending summary uses the existing paginated user-partition query and aggregates reviewed expense fields locally. It adds no secondary index; aggregation reads that user's records. Each currency is summarized independently, without conversion.
 
 ## Later milestones
 

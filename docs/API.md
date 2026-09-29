@@ -13,6 +13,7 @@ Phase 4 implements a local, dependency-injected HTTP API payload v2 adapter in `
 | GET | /receipts/{receiptId} | 200 | Returns the caller's receipt |
 | PUT | /receipts/{receiptId} | 200 | Replaces editable metadata |
 | DELETE | /receipts/{receiptId} | 204 | Deletes the caller's receipt; empty response body |
+| GET | /analytics/spending | 200 | Returns currency-separated Sankey links for the caller's expenses |
 
 Receipt IDs must be canonical UUIDs. Unknown paths return 404; unsupported methods on known routes return 405 with an Allow header. PATCH and OCR routes are not implemented; OCR runs asynchronously through stream and SNS events.
 
@@ -23,6 +24,18 @@ Receipt IDs must be canonical UUIDs. Unknown paths return 404; unsupported metho
 The default sort is `date_desc` (newest purchase date first). Other values are `date_asc`, `merchant_asc`, `merchant_desc`, `total_asc`, and `total_desc`. Equal sort values retain their original user-partition query order. Unknown or repeated parameters, invalid dates, unsupported sort values, and text filters over 200 characters return `400 INVALID_REQUEST`. A valid filter with no matches returns `200 []`. The authenticated subject always selects the user partition; a `userId` query parameter is rejected.
 
 Example: `GET /receipts?merchant=Corner+Shop&category=Office&dateFrom=2026-09-01&dateTo=2026-09-30&sort=total_desc`.
+
+## Spending analytics (Phase 12)
+
+`GET /analytics/spending` accepts optional `dateFrom` and `dateTo` ISO dates. Both boundaries are inclusive, either can be used alone, and a reversed range or unknown/repeated parameter returns `400 INVALID_REQUEST`. The endpoint uses the authenticated Cognito subject and the existing paginated user query; clients cannot select a user or company. It aggregates the stored reviewed expense fields, not the separate OCR extraction. A missing category is grouped as `Uncategorized`.
+
+The response contains one Sankey graph per currency. Link IDs are stable within the response and separate category and merchant nodes:
+
+```json
+{"currencies":[{"currency":"CAD","total":42.5,"nodes":[{"id":"spending","label":"Company spending"},{"id":"category:Office","label":"Office"},{"id":"merchant:Office:Paper Co","label":"Paper Co"}],"links":[{"source":"spending","target":"category:Office","value":42.5},{"source":"category:Office","target":"merchant:Office:Paper Co","value":42.5}]}]}
+```
+
+Category links and merchant links each conserve the currency total. Currency totals are never combined or converted. Aggregation reads every paginated record for the authenticated user and applies the date range in the service; this suits the portfolio-sized dataset and adds no index. A future larger dataset may need a different aggregation strategy.
 
 ## Requests and identity
 

@@ -107,6 +107,32 @@ class ReceiptApiHandlerTest {
     }
 
     @Test
+    void spendingAnalyticsUsesVerifiedIdentityAndInclusiveDateParameters() throws Exception {
+        var event = event("GET", "/analytics/spending", null);
+        event.put("rawQueryString", "dateFrom=2026-09-01&dateTo=2026-09-30");
+        when(service.spending("alice", LocalDate.parse("2026-09-01"), LocalDate.parse("2026-09-30")))
+                .thenReturn(new com.cubby.dto.SpendingSummary(List.of()));
+        var response = handler.handleRequest(event, null);
+        assertEquals(200, response.get("statusCode"));
+        assertTrue(json(response).get("currencies").isArray());
+        verify(service).spending("alice", LocalDate.parse("2026-09-01"), LocalDate.parse("2026-09-30"));
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void spendingAnalyticsRejectsInvalidOrSpoofedQueryAndAnonymousUsers() {
+        for (String raw : List.of("userId=bob", "dateFrom=2026-02-30", "dateFrom=2026-09-02&dateFrom=2026-09-01",
+                "dateFrom=2026-10-01&dateTo=2026-09-01", "merchant=Store")) {
+            var event = event("GET", "/analytics/spending", null);
+            event.put("rawQueryString", raw);
+            assertError(400, "INVALID_REQUEST", handler.handleRequest(event, null));
+        }
+        when(identities.authenticatedUserId(anyMap())).thenReturn(Optional.empty());
+        assertError(401, "UNAUTHORIZED", call("GET", "/analytics/spending", null));
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void getUsesPathUuidAndProviderIdentity() throws Exception {
         when(service.get("alice", ID)).thenReturn(Optional.of(receipt()));
         var event = event("GET", ITEM_PATH, null);

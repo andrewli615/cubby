@@ -8,6 +8,8 @@ import com.cubby.dto.UploadUrlResponse;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDate;
+import com.cubby.dto.SpendingSummary;
 
 /**
  * Receipt operations contract. Each userId must come from verified authentication claims.
@@ -25,6 +27,8 @@ public interface ReceiptService {
     List<Receipt> list(String userId);
 
     List<Receipt> list(String userId, ReceiptListQuery query);
+
+    SpendingSummary spending(String userId, LocalDate dateFrom, LocalDate dateTo);
 
     void delete(String userId, UUID receiptId);
 

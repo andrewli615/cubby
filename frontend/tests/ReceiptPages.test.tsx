@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-  list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), upload: vi.fn(),
+  list: vi.fn(), spending: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), upload: vi.fn(),
 }));
 vi.mock("../src/receipts-api", async (loadOriginal) => {
   const actual = await loadOriginal<typeof import("../src/receipts-api")>();
@@ -25,6 +25,7 @@ function show(path = "/") {
 beforeEach(() => {
   vi.resetAllMocks();
   api.list.mockResolvedValue([]);
+  api.spending.mockResolvedValue({ currencies: [] });
   api.get.mockResolvedValue(receipt);
   api.create.mockResolvedValue(receipt);
   api.update.mockResolvedValue(receipt);
@@ -34,18 +35,62 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("receipt screens", () => {
+  it("shows a dedicated spending-summary loading state", async () => {
+    let finish!: (value: { currencies: [] }) => void;
+    api.spending.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    show();
+    expect(screen.getByText("Loading spending summary…")).toHaveAttribute("role", "status");
+    finish({ currencies: [] });
+    expect(await screen.findByText(/No expense data yet/)).toBeInTheDocument();
+  });
+
+  it("renders a currency-specific Sankey and accessible flow table using date filters", async () => {
+    api.spending.mockResolvedValue({ currencies: [{ currency: "CAD", total: 30, nodes: [
+      { id: "spending", label: "Company spending" }, { id: "category:Office", label: "Office" },
+      { id: "merchant:Office:Office Store", label: "Office Store" },
+    ], links: [{ source: "spending", target: "category:Office", value: 30 },
+      { source: "category:Office", target: "merchant:Office:Office Store", value: 30 }] }] });
+    show();
+    expect(await screen.findByRole("img", { name: /Sankey diagram of CAD/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Spending flow summary")).toHaveTextContent("Company spending");
+    expect(screen.getByLabelText("Spending flow summary")).toHaveTextContent("Office Store");
+    fireEvent.change(screen.getByLabelText("Date from"), { target: { value: "2026-09-01" } });
+    fireEvent.change(screen.getByLabelText("Date to"), { target: { value: "2026-09-28" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() => expect(api.spending).toHaveBeenLastCalledWith({ dateFrom: "2026-09-01", dateTo: "2026-09-28" }));
+  });
+
+  it("requires a currency choice when there are several currencies", async () => {
+    api.spending.mockResolvedValue({ currencies: [
+      { currency: "CAD", total: 10, nodes: [], links: [] },
+      { currency: "USD", total: 20, nodes: [], links: [] },
+    ] });
+    show();
+    expect(await screen.findByText("Choose a currency to view its spending flow.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "USD" } });
+    expect(await screen.findByText(/Total USD/)).toBeInTheDocument();
+  });
+
+  it("shows retryable analytics errors and empty analytics state", async () => {
+    api.spending.mockRejectedValueOnce(new Error("Analytics unavailable"));
+    show();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Analytics unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Retry spending summary" }));
+    expect(await screen.findByText(/No expense data yet/)).toBeInTheDocument();
+  });
+
   it("shows loading, empty, and populated dashboard states", async () => {
     let finish!: (value: typeof receipt[]) => void;
     api.list.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
     const view = show();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading receipts");
+    expect(screen.getByText("Loading receipts…")).toHaveAttribute("role", "status");
     finish([]);
-    expect(await screen.findByText("No receipts yet")).toBeInTheDocument();
+    expect(await screen.findByText("No expenses yet")).toBeInTheDocument();
     view.unmount();
     api.list.mockResolvedValue([receipt]);
     show();
     expect(await screen.findByRole("link", { name: /Office Store/ })).toBeInTheDocument();
-    expect(screen.getByText("1 receipt")).toBeInTheDocument();
+    expect(screen.getByText("1 expense")).toBeInTheDocument();
   });
 
   it("shows a retryable API error", async () => {
@@ -53,7 +98,7 @@ describe("receipt screens", () => {
     show();
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("No receipts yet")).toBeInTheDocument();
+    expect(await screen.findByText("No expenses yet")).toBeInTheDocument();
   });
 
   it("applies combined filters, sort, empty state, and reset", async () => {
@@ -68,7 +113,7 @@ describe("receipt screens", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ merchant: "Office", category: "Travel",
       dateFrom: "2026-09-01", dateTo: "2026-09-28", sort: "merchant_asc" }));
-    expect(await screen.findByText("No receipts match these filters")).toBeInTheDocument();
+    expect(await screen.findByText("No expense documents match these filters")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({}));
     expect(await screen.findByRole("link", { name: /Office Store/ })).toBeInTheDocument();
@@ -100,12 +145,12 @@ describe("receipt screens", () => {
     fireEvent.change(screen.getByLabelText("Total"), { target: { value: "-1" } });
     const file = new File(["bytes"], "receipt.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText(/Original receipt/), { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create expense" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("non-negative amount");
     expect(api.upload).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Total"), { target: { value: "19.99" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create receipt" }));
-    expect(await screen.findByText("Receipt created.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create expense" }));
+    expect(await screen.findByText("Expense created.")).toBeInTheDocument();
     expect(api.upload).toHaveBeenCalledWith(file);
     expect(api.create).toHaveBeenCalledWith({ merchant: "Office Store", purchaseDate: "2026-09-28",
       total: 19.99, currency: "CAD", category: null }, receipt.imageKey);
@@ -120,10 +165,10 @@ describe("receipt screens", () => {
     fireEvent.change(screen.getByLabelText("Total"), { target: { value: "1.00" } });
     fireEvent.change(screen.getByLabelText(/Original receipt/),
       { target: { files: [new File(["x"], "receipt.png", { type: "image/png" })] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create expense" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
-    fireEvent.click(screen.getByRole("button", { name: "Create receipt" }));
-    expect(await screen.findByText("Receipt created.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create expense" }));
+    expect(await screen.findByText("Expense created.")).toBeInTheDocument();
     expect(api.upload).toHaveBeenCalledTimes(1);
     expect(api.create).toHaveBeenCalledTimes(2);
   });
@@ -136,7 +181,7 @@ describe("receipt screens", () => {
     fireEvent.change(screen.getByLabelText("Total"), { target: { value: "1.00" } });
     fireEvent.change(screen.getByLabelText(/Original receipt/),
       { target: { files: [new File(["x"], "receipt.png", { type: "image/png" })] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create expense" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed");
     expect(api.create).not.toHaveBeenCalled();
   });
@@ -146,14 +191,14 @@ describe("receipt screens", () => {
     expect(await screen.findByRole("heading", { name: "Office Store" })).toBeInTheDocument();
     expect(screen.getByText("Stored privately")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Edit" }));
-    expect(await screen.findByRole("heading", { name: "Edit receipt" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Edit expense" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Merchant"), { target: { value: "Updated Store" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.update).toHaveBeenCalledWith(receipt.receiptId, {
       merchant: "Updated Store", purchaseDate: receipt.purchaseDate, total: receipt.total,
       currency: receipt.currency, category: receipt.category,
     }));
-    expect(await screen.findByText("Receipt updated.")).toBeInTheDocument();
+    expect(await screen.findByText("Expense updated.")).toBeInTheDocument();
   });
 
   it("shows ambiguous OCR values separately for review", async () => {

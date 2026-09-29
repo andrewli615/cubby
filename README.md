@@ -1,8 +1,8 @@
 # Cubby
 
-Cubby is a receipt management web application built with React and TypeScript, a Java 21 backend, and AWS CDK-managed serverless infrastructure. The target architecture uses API Gateway, DynamoDB, private S3 storage, Cognito authentication, and asynchronous Textract processing.
+Cubby is a company expense tracker for recording expenses from invoices and receipts and exploring where spending goes. Each uploaded document represents one expense with a merchant, date, total, currency, category and OCR review status. Its dashboard summarizes company spending as a Sankey flow from total spending to category to merchant, with each currency shown separately.
 
-The repository is being built in phases. The current implementation includes the React starter, Java Lambda health and receipt API handlers, receipt domain and DynamoDB repository layers, and locally synthesized core CDK infrastructure for Oregon (`us-west-2`). Private receipt upload signing and S3 definitions are implemented locally. Authentication, frontend upload integration, OCR, and deployment remain future milestones.
+Cubby is a focused portfolio demo using React and TypeScript, a Java 21 Lambda backend, Cognito authentication and a user-partitioned DynamoDB table. A single finance user represents the fictional company. OCR-extracted values remain separate from the reviewed expense fields. This MVP does not model invoice schedules, approvals or line items.
 
 ## Repository layout
 
