@@ -11,7 +11,7 @@ This document tracks Cubby's application milestones and validation expectations.
 
 ## Application roadmap
 
-Phases 1–11 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, receipt CRUD frontend in `3a1474c`, asynchronous OCR in `05b204a`, receipt filtering and sorting in `a0c33b7`, and validation CI/OIDC design in `9eac2c1` passed acceptance review; issues #14–#20 are closed. Phase 12 is implemented and its local backend, frontend and infrastructure checks pass. Deployment and browser/CORS rollout remain separate. Inspect the working tree before editing and preserve existing work.
+Phases 1–12 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, private receipt uploads in `406ca0c`, Cognito authentication in `5c74f3c`, receipt CRUD frontend in `3a1474c`, asynchronous OCR in `05b204a`, receipt filtering and sorting in `a0c33b7`, and validation CI/OIDC design in `9eac2c1` passed acceptance review; issues #14–#20 are closed. Deployment is being planned in [DEPLOYMENT_PLAN.md](DEPLOYMENT_PLAN.md); no account has been accessed and no resources deployed. Inspect the working tree before editing and preserve existing work.
 
 | Phase | Work | Safe validation |
 | --- | --- | --- |
@@ -27,6 +27,7 @@ Phases 1–11 are complete on GitHub `main`. Core infrastructure in `92a4b0e`, p
 | 10. Search and filtering — complete, issue #19 closed (`a0c33b7`) | Authenticated-user merchant/category/inclusive date filters and stable sorting | Backend clean test/build (241 tests) and frontend lint/test/build (22 tests) passed; no new index or AWS calls. |
 | 11. CI/CD — complete, issue #20 closed (`9eac2c1`) | Read-only GitHub Actions validation and OIDC design for later deployment | Local backend/frontend/infrastructure checks, actionlint, and the hosted main-push validation run passed; no IAM role or deployment. |
 | 12. Company expense analytics — complete | Treat each invoice or receipt as one expense; add an authenticated currency-separated Sankey summary and dashboard using reviewed expense fields | Backend clean test/build, frontend lint/test/build, infrastructure lint/build/test/synth passed locally. No deployment or live OCR. |
+| 13. First hosted demo — planned | Host the React frontend on Amplify, set exact-origin API/S3 CORS, and deploy the existing CDK backend after account and IAM review | See [Deployment Plan](DEPLOYMENT_PLAN.md). No account access, bootstrap, deployment, or live OCR is included in planning. |
 
 The project brief remains authoritative for each phase's exact behavior. Keep infrastructure deployment separate from implementation issues.
 

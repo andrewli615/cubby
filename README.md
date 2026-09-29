@@ -56,7 +56,7 @@ pnpm synth --quiet
 
 Copy `.env.example` to `.env.local` when configuring a local API URL. Do not put AWS credentials, tokens, or other secrets in frontend environment variables; Vite exposes `VITE_*` values to browser code.
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local checks, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target architecture, and [docs/AWS_MILESTONES.md](docs/AWS_MILESTONES.md) for implementation progress.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local checks, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target architecture, [docs/AWS_MILESTONES.md](docs/AWS_MILESTONES.md) for implementation progress, and [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md) for the proposed first hosted release.
 
 ## Local dashboard preview
 
