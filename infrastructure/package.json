@@ -2,6 +2,8 @@
   "name": "cubby-infrastructure",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.33.4",
+  "engines": { "node": "22.23.3", "pnpm": "10.33.4" },
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit",

@@ -16,8 +16,8 @@ docs/             Architecture and development references
 ## Prerequisites
 
 - Java 21
-- Node.js 20.19+ or 22.12+
-- pnpm 10+
+- Node.js 22.23.3 (see `.node-version`)
+- pnpm 10.33.4
 - AWS CDK v2 CLI (available through the infrastructure package scripts)
 
 ## Local checks

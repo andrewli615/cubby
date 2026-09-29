@@ -2,6 +2,12 @@
 
 This review covers the repository at `3611c11` (`Prepare Cubby Amplify hosting and CORS`). It distinguishes passing local checks from issues that still need to be closed before the first hosted release. It does not authorize AWS access or deployment.
 
+## Local readiness follow-up (2026-09-29)
+
+The release configuration now requires an explicit 12-digit account and hosted origin when `cubby:release=true`; plain local synthesis remains account-free. The frontend build permits the first Amplify origin-discovery build and rejects missing or malformed API/Cognito settings when `CUBBY_RELEASE_BUILD=1`. Node.js 22.23.3 and pnpm 10.33.4 are pinned in package metadata, CI, Amplify, and `.node-version`.
+
+Java 21 backend `clean test build` passed. Using the existing local Node 24/pnpm 11 binaries, frontend lint, 40 tests, and build passed; infrastructure lint, build, 14 tests, and no-lookup synth passed in both discovery and fake-account release modes. The machine cannot fetch the pinned Node/pnpm versions in the current network sandbox, so CI must verify the exact toolchain after push. The previously observed Sankey timeout recurred once during a concurrent run and passed in isolation and a subsequent complete 40-test run. Amplify's own build and monorepo settings, the actual hosted origin, the final configured frontend build, and the account-specific `cdk diff` still require the authorized hosted environment and non-root credentials.
+
 ## Validation evidence
 
 - Backend: Java 21 `gradlew clean test build` passed and produced the Lambda ZIP.

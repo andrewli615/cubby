@@ -3,6 +3,7 @@ import { test } from "node:test";
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { CubbyStack } from "../lib/cubby-stack.js";
+import { stackConfiguration } from "../lib/stack-config.js";
 
 const app = new cdk.App({ context: { "@aws-cdk/core:checkSecretUsage": true } });
 const webOrigin = "https://demo.example.amplifyapp.com";
@@ -196,6 +197,31 @@ test("synthesis rejects a missing Region or missing Java package instead of usin
       env: { region: "us-west-2" }, webOrigin: invalidOrigin,
     }), /exact HTTPS origin/);
   }
+});
+
+test("release configuration requires a verified account and exact hosted origin", () => {
+  const region = { "cubby:region": "us-west-2" };
+  assert.deepEqual(stackConfiguration(region), { region: "us-west-2" });
+  assert.throws(() => stackConfiguration({ ...region, "cubby:release": "true" }),
+    /requires cubby:account and cubby:webOrigin/);
+  assert.throws(() => stackConfiguration({ ...region, "cubby:account": "1234" }),
+    /12-digit AWS account ID/);
+  assert.throws(() => stackConfiguration({ ...region, "cubby:release": "false" }),
+    /cubby:release=true/);
+  assert.throws(() => stackConfiguration({ ...region, "cubby:release": "true",
+    "cubby:account": "123456789012", "cubby:webOrigin": "https://preview.example.invalid" }),
+  /non-placeholder hosted origin/);
+  const config = stackConfiguration({ ...region, "cubby:release": "true",
+    "cubby:account": "123456789012", "cubby:webOrigin": webOrigin });
+  assert.deepEqual(config, { region: "us-west-2", account: "123456789012", webOrigin });
+  const pinned = new CubbyStack(new cdk.App(), "PinnedCubby", {
+    env: { account: config.account, region: config.region }, webOrigin: config.webOrigin,
+  });
+  assert.equal(pinned.account, "123456789012");
+  assert.equal(pinned.region, "us-west-2");
+  Template.fromStack(pinned).hasResourceProperties("AWS::ApiGatewayV2::Api", {
+    CorsConfiguration: { AllowOrigins: [webOrigin] },
+  });
 });
 
 test("receipt bucket is private, encrypted, retained and has no public access or unrelated features", () => {

@@ -1,6 +1,6 @@
 # CI validation and future deployment identity
 
-The `Validate` GitHub Actions workflow runs on pull requests and pushes to `main`. It uses Java 21 to run the backend's Gradle wrapper checks and package the Lambda ZIP, then Node.js 24 and pnpm 10 with frozen lockfiles for frontend checks and local CDK synthesis. The infrastructure build consumes the ZIP from the same job. Synthesis uses the configured Oregon Region and disables context lookups; it creates no AWS resources.
+The `Validate` GitHub Actions workflow runs on pull requests and pushes to `main`. It uses Java 21 to run the backend's Gradle wrapper checks and package the Lambda ZIP, then Node.js 22.23.3 and pnpm 10.33.4 with frozen lockfiles for frontend checks and local CDK synthesis. The infrastructure build consumes the ZIP from the same job. Synthesis uses the configured Oregon Region and disables context lookups; it creates no AWS resources.
 
 The validation job has only `contents: read`. Its setup actions are pinned to commit SHAs. Checkout does not persist its token, no AWS credentials or repository secrets are passed to steps, and neither OIDC token permission nor a deployment command is present. Dependency caches are disabled so pull request code cannot populate a cache that a later privileged job might restore. The repository ignores local `build/`, `dist/`, `node_modules/`, `.gradle/`, `.pnpm-store/`, and `cdk.out/` output; the workflow does not upload these artifacts.
 

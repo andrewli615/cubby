@@ -2,12 +2,14 @@
   "name": "cubby-frontend",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.33.4",
+  "engines": { "node": "22.23.3", "pnpm": "10.33.4" },
   "type": "module",
   "scripts": {
     "dev": "vite",
     "lint": "eslint .",
     "test": "vitest run",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/check-release-config.mjs && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
