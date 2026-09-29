@@ -57,3 +57,7 @@ pnpm synth --quiet
 Copy `.env.example` to `.env.local` when configuring a local API URL. Do not put AWS credentials, tokens, or other secrets in frontend environment variables; Vite exposes `VITE_*` values to browser code.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local checks, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target architecture, and [docs/AWS_MILESTONES.md](docs/AWS_MILESTONES.md) for implementation progress.
+
+## Local dashboard preview
+
+Run the frontend with `pnpm dev` and open `http://localhost:5173/?demo=1` to preview the dashboard with synthetic CAD and USD expenses. This explicit preview works only in the local Vite development server, bypasses Cognito, and keeps all changes in memory. It does not call AWS or persist data. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).

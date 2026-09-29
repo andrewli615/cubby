@@ -1,4 +1,12 @@
 import { accessToken } from "./auth";
+import { demoCreate, demoDelete, demoGet, demoList, demoSpending, demoUpdate, demoUpload } from "./demo-data";
+
+/** Local-only sample mode. It cannot activate in a production build or off localhost. */
+export function localDemoEnabled(): boolean {
+  return import.meta.env.DEV && typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname) &&
+    new URLSearchParams(window.location.search).get("demo") === "1";
+}
 
 export type ReceiptStatus = "UPLOADED" | "PROCESSING" | "READY" | "REVIEW_NEEDED" | "OCR_FAILED";
 
@@ -158,19 +166,20 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const receiptApi = {
-  list: async (filters: ReceiptListFilters = {}) => apiRequest<Receipt[]>(listPath(filters)),
+  list: async (filters: ReceiptListFilters = {}) => localDemoEnabled() ? demoList(filters) : apiRequest<Receipt[]>(listPath(filters)),
   spending: async (filters: Pick<ReceiptListFilters, "dateFrom" | "dateTo"> = {}) =>
-    apiRequest<SpendingSummary>(spendingPath(filters)),
-  get: (receiptId: string) => apiRequest<Receipt>(`/receipts/${encodeURIComponent(receiptId)}`),
-  create: (fields: ReceiptFields, imageKey: string) =>
+    localDemoEnabled() ? demoSpending(filters) : apiRequest<SpendingSummary>(spendingPath(filters)),
+  get: async (receiptId: string) => localDemoEnabled() ? demoGet(receiptId) : apiRequest<Receipt>(`/receipts/${encodeURIComponent(receiptId)}`),
+  create: async (fields: ReceiptFields, imageKey: string) => localDemoEnabled() ? demoCreate(fields, imageKey) :
     apiRequest<Receipt>("/receipts", { method: "POST", body: JSON.stringify({ ...fields, imageKey }) }),
-  update: (receiptId: string, fields: ReceiptFields) =>
+  update: async (receiptId: string, fields: ReceiptFields) => localDemoEnabled() ? demoUpdate(receiptId, fields) :
     apiRequest<Receipt>(`/receipts/${encodeURIComponent(receiptId)}`,
       { method: "PUT", body: JSON.stringify(fields) }),
-  delete: (receiptId: string) =>
+  delete: async (receiptId: string) => localDemoEnabled() ? demoDelete(receiptId) :
     apiRequest<void>(`/receipts/${encodeURIComponent(receiptId)}`, { method: "DELETE" }),
   upload: async (file: File): Promise<string> => {
     validateUpload(file);
+    if (localDemoEnabled()) return demoUpload();
     const authorization = await apiRequest<UploadAuthorization>("/receipts/upload-url", {
       method: "POST",
       body: JSON.stringify({ fileName: file.name, contentType: file.type, contentLength: file.size }),

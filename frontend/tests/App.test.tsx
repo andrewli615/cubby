@@ -6,8 +6,9 @@ const auth = vi.hoisted(() => ({
   confirmNewPassword: vi.fn(), signOutOfSession: vi.fn(),
 }));
 const receiptApi = vi.hoisted(() => ({ list: vi.fn(), spending: vi.fn() }));
+const demo = vi.hoisted(() => ({ enabled: vi.fn(() => false) }));
 vi.mock("../src/auth", () => ({ authConfigured: true, ...auth }));
-vi.mock("../src/receipts-api", () => ({ receiptApi }));
+vi.mock("../src/receipts-api", () => ({ receiptApi, localDemoEnabled: demo.enabled }));
 import { App } from "../src/App";
 
 beforeEach(() => {
@@ -16,10 +17,19 @@ beforeEach(() => {
   auth.signOutOfSession.mockResolvedValue(undefined);
   receiptApi.list.mockResolvedValue([]);
   receiptApi.spending.mockResolvedValue({ currencies: [] });
+  demo.enabled.mockReturnValue(false);
 });
 afterEach(cleanup);
 
 describe("Cognito sign-in state", () => {
+  it("opens the dashboard directly in local demo mode without Cognito", async () => {
+    demo.enabled.mockReturnValue(true);
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Company expenses" })).toBeInTheDocument();
+    expect(screen.getByText("Demo Finance User")).toBeInTheDocument();
+    expect(auth.currentSession).not.toHaveBeenCalled();
+  });
+
   it("restores an existing session without asking for credentials", async () => {
     auth.currentSession.mockResolvedValue("owner@example.com");
     render(<App />);

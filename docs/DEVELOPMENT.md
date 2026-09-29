@@ -42,6 +42,8 @@ pnpm test
 pnpm build
 ```
 
+To preview the dashboard before Cognito or API deployment, run `pnpm dev` and open `http://localhost:5173/?demo=1`. The preview is enabled only in Vite development mode on localhost, uses synthetic CAD/USD data in memory, and makes no network requests. Refreshing restores the sample dataset. Without the `demo=1` query, the normal Cognito configuration and sign-in flow is unchanged.
+
 Keep generated output (`build/`, `dist/`, `node_modules/`, and `cdk.out/`) out of version control. Commit only reviewed source, configuration, tests and documentation.
 
 For local sign-in, copy the repository `.env.example` values into `frontend/.env.local` and set `VITE_COGNITO_USER_POOL_ID` and `VITE_COGNITO_CLIENT_ID` to the stack outputs after a separately authorized deployment. These IDs are public configuration, not secrets. The browser client uses SRP sign-in and tab-scoped session storage; administrator-created users can set their first password, and enrolled users can answer a TOTP challenge. Self-sign-up is disabled. Phase 7 does not create users or identity resources.

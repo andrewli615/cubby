@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({ accessToken: vi.fn() }));
 vi.mock("../src/auth", () => auth);
-import { receiptApi, validateUpload } from "../src/receipts-api";
+import { localDemoEnabled, receiptApi, validateUpload } from "../src/receipts-api";
 
 const receipt = {
   receiptId: "920a995d-693c-4634-9fcf-985b1ddc0199", userId: "verified-subject", merchant: "Store",
@@ -19,6 +19,21 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("typed receipt API client", () => {
+  it("serves clearly synthetic dashboard data only for the explicit localhost preview", async () => {
+    window.history.pushState({}, "", "/?demo=1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(localDemoEnabled()).toBe(true);
+    const expenses = await receiptApi.list();
+    const summary = await receiptApi.spending();
+    expect(expenses.length).toBeGreaterThan(5);
+    expect(summary.currencies.map((entry) => entry.currency)).toEqual(["CAD", "USD"]);
+    expect(summary.currencies[0]!.total).toBeCloseTo(1425.29);
+    expect(summary.currencies[0]!.nodes.some((node) => node.label === "Uncategorized")).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    window.history.pushState({}, "", "/");
+  });
+
   it("attaches the access token and never sends owner identity in create/update bodies", async () => {
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(receipt), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

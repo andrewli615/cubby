@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { authConfigured, confirmNewPassword, confirmTotp, currentSession, signInWithPassword, signOutOfSession } from "./auth";
 import { ReceiptPages } from "./receipt-pages";
+import { localDemoEnabled } from "./receipts-api";
 
 function HomePage({ account, onSignOut }: { account: string; onSignOut: () => void }) {
   return <ReceiptPages account={account} onSignOut={onSignOut} />;
@@ -98,5 +99,8 @@ function AuthPage() {
 }
 
 export function App() {
-  return <BrowserRouter><Routes><Route path="*" element={<AuthPage />} /></Routes></BrowserRouter>;
+  const demoMode = localDemoEnabled();
+  return <BrowserRouter><Routes><Route path="*" element={demoMode ?
+    <HomePage account="Demo Finance User" onSignOut={() => window.location.assign(window.location.pathname)} /> :
+    <AuthPage />} /></Routes></BrowserRouter>;
 }
