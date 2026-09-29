@@ -18,6 +18,8 @@ import { fileURLToPath } from "node:url";
 
 export interface CubbyStackProps extends cdk.StackProps {
   readonly lambdaAssetPath?: string;
+  /** Exact HTTPS origin of the hosted frontend. Omit only for local synthesis before hosting exists. */
+  readonly webOrigin?: string;
 }
 
 /** Core regional resources only. Synthesis never deploys or performs context lookups. */
@@ -26,6 +28,17 @@ export class CubbyStack extends cdk.Stack {
     super(scope, id, props);
     if (!props.env?.region || cdk.Token.isUnresolved(this.region)) {
       throw new Error("Set the project's selected Region before synthesizing.");
+    }
+    if (props.webOrigin !== undefined) {
+      let parsedOrigin: URL;
+      try {
+        parsedOrigin = new URL(props.webOrigin);
+      } catch {
+        throw new Error("webOrigin must be one exact HTTPS origin with no path, query, or fragment.");
+      }
+      if (parsedOrigin.protocol !== "https:" || parsedOrigin.origin !== props.webOrigin) {
+        throw new Error("webOrigin must be one exact HTTPS origin with no path, query, or fragment.");
+      }
     }
     const assetPath = props.lambdaAssetPath ?? fileURLToPath(
       new URL("../../backend/build/distributions/cubby-lambda.zip", import.meta.url),
@@ -52,6 +65,12 @@ export class CubbyStack extends cdk.Stack {
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       autoDeleteObjects: false,
+      ...(props.webOrigin ? { cors: [{
+        allowedOrigins: [props.webOrigin],
+        allowedMethods: [s3.HttpMethods.PUT],
+        allowedHeaders: ["Content-Type", "If-None-Match"],
+        maxAge: 300,
+      }] } : {}),
     });
     const users = new cognito.UserPool(this, "Users", {
       selfSignUpEnabled: false,
@@ -210,6 +229,14 @@ export class CubbyStack extends cdk.Stack {
 
     const api = new apigateway.HttpApi(this, "HttpApi", {
       createDefaultStage: false,
+      ...(props.webOrigin ? { corsPreflight: {
+        allowOrigins: [props.webOrigin],
+        allowMethods: [apigateway.CorsHttpMethod.GET, apigateway.CorsHttpMethod.POST,
+          apigateway.CorsHttpMethod.PUT, apigateway.CorsHttpMethod.DELETE],
+        allowHeaders: ["Authorization", "Content-Type"],
+        allowCredentials: false,
+        maxAge: cdk.Duration.seconds(300),
+      } } : {}),
       defaultAuthorizer: new HttpJwtAuthorizer("ReceiptJwt", users.userPoolProviderUrl, {
         jwtAudience: [webClient.userPoolClientId],
         identitySource: ["$request.header.Authorization"],

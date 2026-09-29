@@ -1,0 +1,21 @@
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      buildPath: /
+      phases:
+        preBuild:
+          commands:
+            - nvm use 22
+            - npm install --global pnpm@10
+            - cd frontend && pnpm install --frozen-lockfile
+        build:
+          commands:
+            - cd frontend && pnpm lint && pnpm test && pnpm build
+      artifacts:
+        baseDirectory: frontend/dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - frontend/node_modules/**/*

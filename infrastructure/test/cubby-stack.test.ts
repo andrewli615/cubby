@@ -5,7 +5,8 @@ import { Match, Template } from "aws-cdk-lib/assertions";
 import { CubbyStack } from "../lib/cubby-stack.js";
 
 const app = new cdk.App({ context: { "@aws-cdk/core:checkSecretUsage": true } });
-const stack = new CubbyStack(app, "TestCubby", { env: { region: "us-west-2" } });
+const webOrigin = "https://demo.example.amplifyapp.com";
+const stack = new CubbyStack(app, "TestCubby", { env: { region: "us-west-2" }, webOrigin });
 const template = Template.fromStack(stack);
 interface Resource {
   Type: string;
@@ -108,7 +109,14 @@ test("health is the only anonymous route and all seven data routes require scope
     assert.deepEqual(route.AuthorizationScopes, ["aws.cognito.signin.user.admin"]);
   }
   template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
-    ProtocolType: "HTTP", CorsConfiguration: Match.absent(),
+    ProtocolType: "HTTP",
+    CorsConfiguration: {
+      AllowOrigins: [webOrigin],
+      AllowMethods: ["GET", "POST", "PUT", "DELETE"],
+      AllowHeaders: ["Authorization", "Content-Type"],
+      AllowCredentials: false,
+      MaxAge: 300,
+    },
   });
   template.hasResourceProperties("AWS::ApiGatewayV2::Integration", {
     IntegrationType: "AWS_PROXY", PayloadFormatVersion: "2.0",
@@ -182,6 +190,12 @@ test("synthesis rejects a missing Region or missing Java package instead of usin
   assert.throws(() => new CubbyStack(new cdk.App(), "NoRegion", {}), /selected Region/);
   assert.throws(() => new CubbyStack(new cdk.App(), "NoArtifact",
     { env: { region: "us-west-2" }, lambdaAssetPath: "missing-cubby-artifact.zip" }), /Gradle build/);
+  for (const invalidOrigin of ["http://demo.example.com", "https://demo.example.com/path",
+    "https://demo.example.com/", "https://demo.example.com?query=1"]) {
+    assert.throws(() => new CubbyStack(new cdk.App(), "InvalidOrigin", {
+      env: { region: "us-west-2" }, webOrigin: invalidOrigin,
+    }), /exact HTTPS origin/);
+  }
 });
 
 test("receipt bucket is private, encrypted, retained and has no public access or unrelated features", () => {
@@ -192,7 +206,12 @@ test("receipt bucket is private, encrypted, retained and has no public access or
     OwnershipControls: { Rules: [{ ObjectOwnership: "BucketOwnerEnforced" }] },
     BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: "AES256" } }] },
     WebsiteConfiguration: Match.absent(),
-    CorsConfiguration: Match.absent(),
+    CorsConfiguration: { CorsRules: [{
+      AllowedOrigins: [webOrigin],
+      AllowedMethods: ["PUT"],
+      AllowedHeaders: ["Content-Type", "If-None-Match"],
+      MaxAge: 300,
+    }] },
     NotificationConfiguration: Match.absent(),
     LifecycleConfiguration: Match.absent(),
   });

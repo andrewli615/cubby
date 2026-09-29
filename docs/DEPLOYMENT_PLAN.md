@@ -9,9 +9,9 @@ This plan prepares Cubby for its first hosted demo. It is not an authorization t
 - Keep the backend deploy in CDK. Amplify hosts and builds the frontend; it does not replace or deploy the CDK backend.
 - The `main` branch is the hosted demo. A commit to `main` triggers an Amplify frontend build and publish, in addition to the repository's existing validation workflow.
 
-Amplify supports React SPAs, Git-connected deployments, branch URLs and monorepos. Cubby's Amplify monorepo app root is `frontend`; Amplify requires its `AMPLIFY_MONOREPO_APP_ROOT` value to match. The build should select Node.js 22, install the pinned pnpm version, run `pnpm install --frozen-lockfile`, then lint, test and build. Publish `frontend/dist`. Because the current repo does not have a root pnpm workspace, the build configuration must install pnpm in its pre-build phase and run commands from the frontend app root. [Amplify Hosting guide](https://docs.aws.amazon.com/amplify/latest/userguide/), [Amplify monorepo configuration](https://docs.aws.amazon.com/amplify/latest/userguide/monorepo-configuration.html), [Amplify Node.js version guidance](https://docs.aws.amazon.com/amplify/latest/userguide/troubleshooting-general.html).
+Amplify supports React SPAs, Git-connected deployments, branch URLs and monorepos. Cubby's Amplify monorepo app root is `frontend`; Amplify requires its `AMPLIFY_MONOREPO_APP_ROOT` value to match. The root `amplify.yml` selects Node.js 22, installs pnpm 10, runs `pnpm install --frozen-lockfile`, then lint, test and build. It publishes `frontend/dist`. The build runs from the repository root because this is a monorepo build specification, while each pnpm command targets `frontend`. AWS documents this root `buildPath` form and notes that pnpm must be installed in `preBuild`. [Amplify Hosting guide](https://docs.aws.amazon.com/amplify/latest/userguide/), [Amplify monorepo configuration](https://docs.aws.amazon.com/amplify/latest/userguide/monorepo-configuration.html), [Amplify Node.js version guidance](https://docs.aws.amazon.com/amplify/latest/userguide/troubleshooting-general.html).
 
-The React app uses browser routes such as `/receipts/{id}`. Configure an Amplify SPA rewrite to return `/index.html` for application paths so reloading a nested route does not return a hosting 404.
+The React app uses browser routes such as `/receipts/{id}`. In the Amplify console, open **App settings → Rewrites and redirects** and add this single-page-app rule: source `</^[^.]+$|\.(?!(css|gif|ico|jpe?g|js|png|txt|svg|woff|ttf|map)$)([^.]+$)/>`, target `/index.html`, status `200 (Rewrite)`. This lets a reload of a nested route reach React Router without rewriting known static-file types. Keep this rule after any more specific redirects. [Amplify rewrite guidance](https://docs.aws.amazon.com/amplify/latest/userguide/redirects.html).
 
 ## CORS values to set after the hosted origin exists
 
@@ -21,12 +21,23 @@ For the API Gateway HTTP API, allow origin `O`, methods `GET`, `POST`, `PUT`, an
 
 For the private receipt bucket, allow origin `O`, method `PUT`, and headers `Content-Type` and `If-None-Match`; expose no headers and use a 300-second preflight cache. The browser sends the Cognito token only to the API; the S3 upload uses the signed URL and signed upload headers. Keep the current private bucket policy and signed URL controls. [S3 CORS guidance](https://docs.aws.amazon.com/AmazonS3/latest/userguide/cors.html).
 
-The CORS origin must be an explicit CDK input so local synth and template tests can assert the exact origin and methods. Add tests for both the HTTP API and S3 bucket before deploying the stack.
+The origin is passed as the explicit CDK context value `cubby:webOrigin`. When supplied, the stack validates that it is one exact HTTPS origin and applies it to both CORS configurations. Local synthesis without this value remains possible before the Amplify URL exists; it intentionally emits no browser CORS rules. Tests assert the exact configured origin and methods. Never synthesize the final deployment template without the actual Amplify branch origin.
+
+## Current next action: finish local preparation
+
+The owner has confirmed that the `cubby` AWS profile resolves to the intended account and that `us-west-2` is the selected Region. This confirms the target only; it does not authorize AWS changes. The coding agent should complete these local steps and commit the reviewed milestone:
+
+1. Review `amplify.yml`, CDK exact-origin validation/CORS, and the changes in this plan and `AGENTS.md`.
+2. Run the documented backend clean test/build, frontend frozen install/lint/test/build, and infrastructure install/lint/build/test/synth. During local synth, use a documentation-only test origin if checking configured CORS; never put an invented origin in the deployment configuration.
+3. Inspect the complete diff and staged file list, run `git diff --check`, and scan changed files for credentials and generated output. Commit the local preparation milestone and push it to GitHub.
+4. Report the completed checks and stop. Do not connect Amplify, bootstrap CDK, deploy, or create live AWS resources until the owner separately asks to begin deployment.
+
+When deployment is separately authorized, the owner or agent should first connect Amplify to `andrewli615/cubby` on `main` with monorepo root `frontend`, obtain the generated HTTPS branch URL, and set that exact value as `cubby:webOrigin`. Then synthesize and review the configured template and IAM/deployment approach before any bootstrap or deployment. The currently confirmed profile and Region avoid ambiguity about the target; deployment still requires explicit authorization.
 
 ## Deployment sequence
 
-1. Confirm the target AWS account and `us-west-2` using the intended `cubby` profile. Check whether the account already contains a Cubby stack or CDK bootstrap resources in that account/Region before making changes.
-2. Add the Amplify build specification and SPA rewrite, and make the CDK stack require an explicit hosted frontend origin for both CORS configurations. Add template assertions and document how to set the three Vite build values.
+1. **Confirmed by the owner:** the `cubby` profile points to the intended account and `us-west-2` is the target Region. Once deployment is separately authorized, inspect whether a Cubby stack or CDK bootstrap resources already exist there before making changes.
+2. Add the Amplify build specification and SPA rewrite, and pass an explicit hosted frontend origin to the CDK stack for both CORS configurations. Add template assertions and document how to set the three Vite build values.
 3. Run the local backend clean test/build, frontend install/lint/test/build, and infrastructure lint/build/test/synth. Review `cdk diff` against the chosen account/Region before any deployment.
 4. Connect Amplify Hosting to `andrewli615/cubby`, select the `main` branch and monorepo app root `frontend`, then obtain the actual HTTPS branch origin. Configure the SPA rewrite and Node/pnpm build settings.
 5. Add that exact Amplify origin to the CDK CORS input. Review the final synthesized template and infrastructure diff, including retained resources and IAM changes.
@@ -41,7 +52,7 @@ The repository's GitHub Actions workflow currently validates only. It does not h
 
 ## Decisions for the owner before deployment
 
-- Confirm the AWS account ID shown by `aws sts get-caller-identity --profile cubby` is the intended account.
+- The owner confirmed that `aws sts get-caller-identity --profile cubby` showed the intended AWS account.
 - Confirm `us-west-2` and the generated Amplify HTTPS URL are acceptable for the first hosted demo. A custom domain is optional and not required for the initial release.
-- Review account access and service availability before provisioning. No AWS account has been accessed as part of this plan.
+- Review the intended role permissions and service availability before provisioning. This planning work has not accessed AWS directly.
 - Decide separately whether to authorize deployment and whether to perform a live receipt/OCR smoke test.
