@@ -23,22 +23,19 @@ For the private receipt bucket, allow origin `O`, method `PUT`, and headers `Con
 
 The origin is passed as the explicit CDK context value `cubby:webOrigin`. When supplied, the stack validates that it is one exact HTTPS origin and applies it to both CORS configurations. Local synthesis without this value remains possible before the Amplify URL exists; it intentionally emits no browser CORS rules. Tests assert the exact configured origin and methods. Never synthesize the final deployment template without the actual Amplify branch origin.
 
-## Current next action: finish local preparation
+## Current status and next action
 
-The owner has confirmed that the `cubby` AWS profile resolves to the intended account and that `us-west-2` is the selected Region. This confirms the target only; it does not authorize AWS changes. The coding agent should complete these local steps and commit the reviewed milestone:
+The local hosting/CORS preparation is committed and pushed as `3611c11`. The owner confirmed that the `cubby` AWS profile resolves to the intended account and that `us-west-2` is the selected Region. This confirms the target only; it does not authorize AWS changes. Before connecting hosting, the coding agent should review and address the build weaknesses in [Build Review](BUILD_REVIEW.md), especially the unresolved CDK account, missing required-origin deployment guard, and missing final frontend runtime-configuration check.
 
-1. Review `amplify.yml`, CDK exact-origin validation/CORS, and the changes in this plan and `AGENTS.md`.
-2. Run the documented backend clean test/build, frontend frozen install/lint/test/build, and infrastructure install/lint/build/test/synth. During local synth, use a documentation-only test origin if checking configured CORS; never put an invented origin in the deployment configuration.
-3. Inspect the complete diff and staged file list, run `git diff --check`, and scan changed files for credentials and generated output. Commit the local preparation milestone and push it to GitHub.
-4. Report the completed checks and stop. Do not connect Amplify, bootstrap CDK, deploy, or create live AWS resources until the owner separately asks to begin deployment.
+The last local validation passed backend `clean test build`, frontend frozen install/lint/29 tests/build, and infrastructure install/lint/build/13 tests/synth with a sample origin. Amplify itself has not run this build specification. Do not connect Amplify, bootstrap CDK, deploy, or create live AWS resources until the owner separately asks to begin deployment.
 
-When deployment is separately authorized, the owner or agent should first connect Amplify to `andrewli615/cubby` on `main` with monorepo root `frontend`, obtain the generated HTTPS branch URL, and set that exact value as `cubby:webOrigin`. Then synthesize and review the configured template and IAM/deployment approach before any bootstrap or deployment. The currently confirmed profile and Region avoid ambiguity about the target; deployment still requires explicit authorization.
+When deployment is separately authorized, connect Amplify to `andrewli615/cubby` on `main` with monorepo root `frontend`; verify `AMPLIFY_MONOREPO_APP_ROOT=frontend`; obtain the generated HTTPS branch URL; and set that exact value as `cubby:webOrigin`. Then synthesize and review the account-pinned template and IAM/deployment approach before any bootstrap or deployment. The currently confirmed profile and Region avoid ambiguity about the target; deployment still requires explicit authorization.
 
 ## Deployment sequence
 
 1. **Confirmed by the owner:** the `cubby` profile points to the intended account and `us-west-2` is the target Region. Once deployment is separately authorized, inspect whether a Cubby stack or CDK bootstrap resources already exist there before making changes.
-2. Add the Amplify build specification and SPA rewrite, and pass an explicit hosted frontend origin to the CDK stack for both CORS configurations. Add template assertions and document how to set the three Vite build values.
-3. Run the local backend clean test/build, frontend install/lint/test/build, and infrastructure lint/build/test/synth. Review `cdk diff` against the chosen account/Region before any deployment.
+2. **Complete locally:** add the Amplify build specification, exact-origin CORS support and tests. Before using it for a release, close the build weaknesses listed in [Build Review](BUILD_REVIEW.md).
+3. **Complete locally:** backend clean test/build, frontend frozen install/lint/test/build, and infrastructure lint/build/test/synth. After a hosted origin and account context are configured, rerun synthesis and review `cdk diff` against the confirmed account/Region before deployment.
 4. Connect Amplify Hosting to `andrewli615/cubby`, select the `main` branch and monorepo app root `frontend`, then obtain the actual HTTPS branch origin. Configure the SPA rewrite and Node/pnpm build settings.
 5. Add that exact Amplify origin to the CDK CORS input. Review the final synthesized template and infrastructure diff, including retained resources and IAM changes.
 6. Review the CDK bootstrap IAM approach before bootstrapping. CDK bootstrap creates publishing/deployment roles and an asset bucket; its default CloudFormation execution policy is broad. Scope the CloudFormation execution role and `iam:PassRole`, and use a permissions boundary where appropriate. Do not accept a default administrator execution policy without reviewing it. [CDK bootstrap resources and permissions](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping-env.html), [CDK bootstrap customization](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping-customizing.html).
@@ -53,6 +50,6 @@ The repository's GitHub Actions workflow currently validates only. It does not h
 ## Decisions for the owner before deployment
 
 - The owner confirmed that `aws sts get-caller-identity --profile cubby` showed the intended AWS account.
-- Confirm `us-west-2` and the generated Amplify HTTPS URL are acceptable for the first hosted demo. A custom domain is optional and not required for the initial release.
+- Confirm the generated Amplify HTTPS URL is acceptable for the first hosted demo. A custom domain is optional and not required for the initial release.
 - Review the intended role permissions and service availability before provisioning. This planning work has not accessed AWS directly.
 - Decide separately whether to authorize deployment and whether to perform a live receipt/OCR smoke test.
