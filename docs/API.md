@@ -101,4 +101,4 @@ URLs are bearer authorizations: do not log or persist them. API responses use `C
 
 The [S3 conditional-write contract](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes-enforce.html) prevents replacement at an existing key. The bucket also denies deletion of originals, and its policy rejects signatures older than five minutes. Receipt deletion removes metadata only and retains the original object; retention cleanup would require a separate design. Concurrent/repeated uploads may return S3 409/412; request a new authorization/key when needed.
 
-The Lambda entry point requires verified Cognito identity on this route. Browser CORS is not yet configured; trusted frontend origins and browser smoke testing belong to a separate rollout. Provisioning and live upload tests remain separate from this milestone.
+The Lambda entry point requires verified Cognito identity on this route. CDK configures browser CORS for one exact HTTPS origin when `cubby:webOrigin` is supplied; plain local synthesis omits CORS. The hosted preflight and upload smoke tests remain pending, as does deployment.

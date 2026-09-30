@@ -4,7 +4,7 @@
 
 Cubby records company expenses from invoices and receipts. Each source document maps to one expense record with merchant, date, total, currency, category and OCR review status. OCR extraction remains separate from the reviewed fields used by reporting. The portfolio MVP represents a fictional company with one Cognito finance user; DynamoDB data stays partitioned by that verified identity. It does not model payment schedules, approvals or invoice line items.
 
-The React frontend, Java 21 Lambda API, Cognito authentication, private S3 originals, asynchronous Textract processing and user-scoped DynamoDB repository form the current architecture. The selected Region is US West (Oregon), `us-west-2`, configured by `cubby:region` in the CDK app. The account remains a CloudFormation token; synthesis requires no account lookup.
+The React frontend, Java 21 Lambda API, Cognito authentication, private S3 originals, asynchronous Textract processing and user-scoped DynamoDB repository form the current architecture. The selected Region is US West (Oregon), `us-west-2`, configured by `cubby:region` in the CDK app. Plain local synthesis leaves the account unresolved; release synthesis requires an explicit `cubby:account` and hosted origin.
 
 ## Core CDK resources
 
@@ -22,6 +22,6 @@ The stack has termination protection. Phase 9 adds a keys-only receipt stream, t
 
 Only `GET /health` is public. Receipt and analytics routes require Cognito access tokens at API Gateway. `ReceiptLambdaHandler` derives the owner from the verified JWT subject through its identity provider, never from client-supplied receipt data. The spending summary uses the existing paginated user-partition query and aggregates reviewed expense fields locally. It adds no secondary index; aggregation reads that user's records. Each currency is summarized independently, without conversion.
 
-## Later milestones
+## Hosting preparation
 
-Browser CORS origins are intentionally unconfigured pending a separately scoped rollout. No deployment has been performed. See [API](API.md) for the local contract and [development](DEVELOPMENT.md) for validation commands.
+The stack adds exact-origin HTTP API and private S3 upload CORS when `cubby:webOrigin` is supplied. Plain local synthesis omits browser CORS; release synthesis requires the origin and account under `cubby:release=true`. The repository has no recorded deployment. See the [deployment plan](DEPLOYMENT_PLAN.md) for the remaining hosted checks and [development](DEVELOPMENT.md) for local validation.
