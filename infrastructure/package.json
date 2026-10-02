@@ -9,6 +9,7 @@
     "build": "tsc --noEmit",
     "lint": "eslint .",
     "synth": "cdk synth --no-lookups",
+    "deploy:guarded": "tsx bin/deploy.ts",
     "cdk": "cdk",
     "test": "tsx --test test/*.test.ts"
   },

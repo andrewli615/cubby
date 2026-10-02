@@ -30,6 +30,8 @@ pnpm synth --quiet
 
 For a configured release synthesis, pass `--context cubby:release=true`, the verified 12-digit `cubby:account`, and the actual HTTPS `cubby:webOrigin`. This pins the stack to the target account and rejects missing values and some placeholder hostnames. Compare the account with `aws sts get-caller-identity` for the selected non-root profile before `cdk diff` or deployment; verify the origin against the Amplify branch URL and never use a test origin for those operations. Plain local synthesis remains account-free.
 
+For a separately authorized deployment, use `pnpm run deploy:guarded` from `infrastructure` with `--context cubby:release=true`, `--context cubby:account=<verified 12-digit ID>`, `--context cubby:webOrigin=<actual HTTPS main-branch Amplify origin>`, and `--profile cubby`. The script accepts no extra CDK flags. Before starting CDK, it rejects ambient AWS key credentials, checks that STS identifies a non-root principal in the requested account, and confirms the Amplify app, repository, default domain, and `main` branch through read-only AWS calls. It then invokes `cdk deploy Cubby` with the validated context and `--profile cubby`. Do not run this command for local validation; `pnpm synth --quiet` remains the no-AWS check.
+
 Review `infrastructure/cdk.out/Cubby.template.json` and the assembly manifest after synthesis. The default stage's AutoDeploy property describes future CloudFormation behavior; it does not deploy anything during synthesis. Do not bootstrap or deploy as part of these checks.
 
 The infrastructure consumes the actual Java package and fails if it is missing. Rebuild the backend after Java changes before synthesizing.
